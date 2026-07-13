@@ -1,0 +1,40 @@
+model:
+  vocab_size: null
+  d_model: 256
+  num_encoder_layers: 2
+  nhead: 4
+  num_decoder_layers: 4
+  dim_feedforward: 1024
+  dropout: 0.2
+  high_res_temporal: false
+  max_label_len: 34
+  label_smoothing: 0.1
+  pretrained: true
+  ctc_weight: 0.0
+data:
+  train_annotation: data/raw/train/labels.txt
+  val_annotation: data/raw/val/labels.txt
+  train_image_root: .
+  val_image_root: .
+  image_height: 64
+  max_image_width: 512
+  max_label_len: 32
+  use_elastic: true
+  num_workers: 2
+training:
+  batch_size: 64
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.0001
+  warmup_steps: 4000
+  grad_clip: 5.0
+  mixed_precision: true
+  log_interval: 50
+  val_interval: 1
+  greedy_val: true
+  beam_size: 5
+  constrain_decode: true
+  constrain_penalty: 10.0
+  save_dir: checkpoints/ar_no_ctc
+  log_dir: logs/ar_no_ctc
+  vocab_path: checkpoints/vocab.pkl

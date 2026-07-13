@@ -1,0 +1,95 @@
+/home/csd23rb8/67a7/MajorProject/telugu_htr/.venv/lib/python3.12/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+══════════════════════════════════════════════════════════════
+  Telugu HTR — Pre-training Sanity Check
+══════════════════════════════════════════════════════════════
+
+[Loading vocabulary ...]
+[Vocab] Loaded from checkpoints/vocab.pkl (size=91)
+  Vocab size: 91  matrix_source: data_driven
+
+── Test 1: Encoder output shape ───────────────────────────
+  Input  : [1, 1, 64, 512]
+  Output : [1, 64, 256]   (B=1, S=64, D=256)
+  ✅ PASS  Encoder shape  S=64 >= CTC minimum 63, D=256
+  Width= 256 → S=32
+  Width= 384 → S=48
+
+── Test 2: Vocabulary encode→decode round-trip ─────────────
+  Tested 100 labels
+  UNK tokens       : 0  (rate=0.00%)
+  Round-trip errors: 0  (rate=0.0%)
+  ✅ PASS  Vocab round-trip  0 mismatches, UNK rate=0.00%
+
+── Test 3: Unicode normalisation consistency ────────────────
+  Non-NFC labels in train sample : 0/200
+  Non-NFC labels in val sample   : 0/200
+  ✅ PASS  Unicode normalisation  All sampled labels are NFC-normalised
+
+── Test 4: Transition mask violation check ─────────────────
+
+[Vocab] Validation against [val]:
+  Total transitions   : 195,485
+  Blocked transitions : 52  (0.027%)
+  First blocked examples:
+    label='వథ'  prev='వ'  next='థ'
+    label='వాసుదేవః'  prev='వ'  next='ః'
+    label='మేఘాల'  prev='ే'  next='ఘ'
+    label='వెంఠనే'  prev='ఠ'  next='న'
+    label='శోభని'  prev='భ'  next='న'
+  ✓  Constraint matrix is safe on val.
+  ✅ PASS  Mask violation (val)  Very low violation rate 0.0266% on val — acceptable
+
+[Vocab] Validation against [test]:
+  Total transitions   : 174,071
+  Blocked transitions : 52  (0.030%)
+  First blocked examples:
+    label='సౌధం'  prev='ౌ'  next='ధ'
+    label='సూఫీ'  prev='ూ'  next='ఫ'
+    label='రణరంగంలో'  prev='ణ'  next='ర'
+    label='వాసుదేవః'  prev='వ'  next='ః'
+    label='శోభని'  prev='భ'  next='న'
+  ✓  Constraint matrix is safe on test.
+  ✅ PASS  Mask violation (test)  Very low violation rate 0.0299% on test — acceptable
+
+── Test 5: Data loading (1 batch from train and val) ───────
+[Dataset] Loaded 80693 samples (skipped 0) from data/raw/train/labels.txt
+  ❌ FAIL  Data loading  [Dataset] 50 image files not found (showing first 5):
+data/raw/train/TeluguSeg/train/7/296/20.jpg
+data/raw/train/TeluguSeg/train/2/431/13.jpg
+data/raw/train/TeluguSeg/train/5/157/4.jpg
+data/raw/train/TeluguSeg/train/2/3/11.jpg
+data/raw/train/TeluguSeg/train/2/186/11.jpg
+Check that image_root='data/raw/train' matches your labels.txt format.
+
+── Test 6: CTC model forward pass ──────────────────────────
+  Loss=26.5325  finite=True
+  Greedy decode lengths: [42, 40]
+  ✅ PASS  CTC forward pass  loss=26.5325
+
+── Test 7: AR model forward pass ───────────────────────────
+  Loss=14.1644 (CE=7.1186, CTC=30.6046)  finite=True
+  Greedy decode lengths: [12, 12]
+  ✅ PASS  AR forward pass  loss=14.1644
+
+══════════════════════════════════════════════════════════════
+  SANITY CHECK SUMMARY: 7/8 passed
+──────────────────────────────────────────────────────────────
+  ✅  Encoder shape
+  ✅  Vocab round-trip
+  ✅  Unicode normalisation
+  ✅  Mask violation (val)
+  ✅  Mask violation (test)
+  ❌  Data loading
+       → [Dataset] 50 image files not found (showing first 5):
+data/raw/train/TeluguSeg/train/7/296/20.jpg
+data/raw/train/TeluguSeg/train/2/431/13.jpg
+data/raw/train/TeluguSeg/train/5/157/4.jpg
+data/raw/train/TeluguSeg/train/2/3/11.jpg
+data/raw/train/TeluguSeg/train/2/186/11.jpg
+Check that image_root='data/raw/train' matches your labels.txt format.
+  ✅  CTC forward pass
+  ✅  AR forward pass
+══════════════════════════════════════════════════════════════
+  Fix the failing checks before training.
+
