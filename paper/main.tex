@@ -98,13 +98,13 @@ Incorporating linguistic knowledge into decoding has been explored through lexic
 % ═══════════════════════════════════════════════════════════════════
 \section{Proposed Method}
 
-Our system comprises four components: (A)~a CNN feature encoder, (B)~a CTC baseline decoder, (C)~an autoregressive Transformer decoder with auxiliary CTC training, and (D)~a Telugu linguistic constraint mask. Fig.~\ref{fig:training_curves} shows the training convergence of both model families.
+Our system comprises four components: (A)~a CNN feature encoder, (B)~a CTC baseline decoder, (C)~an autoregressive Transformer decoder with auxiliary CTC training, and (D)~a Telugu linguistic constraint mask. Fig.~\ref{fig:architecture} illustrates the overall architecture.
 
 \begin{figure*}[t]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/training_curves.png}
-    \caption{Training convergence. (a)~Validation CER (\%) vs.\ epoch for CTC Baseline and AR Transformer models, showing smooth convergence. (b)~Training loss vs.\ epoch. Both models were trained for 50 epochs on a single NVIDIA RTX 3090 Ti.}
-    \label{fig:training_curves}
+    \includegraphics[width=0.90\textwidth]{figures/architecture_diagram.png}
+    \caption{System architecture. A modified ResNet-18 encoder extracts width-preserving features from input images ($B \times 1 \times 64 \times 512 \rightarrow B \times 64 \times 256$). Two decoder pathways are compared: \textbf{Path~A}~(CTC Baseline) uses a BiLSTM with CTC decoding; \textbf{Path~B}~(AR Transformer) uses a cross-attentive Transformer decoder with auxiliary CTC training and an optional Telugu grammar mask at inference.}
+    \label{fig:architecture}
 \end{figure*}
 
 \subsection{CNN Feature Encoder}
