@@ -5,7 +5,6 @@
 % ═══════════════════════════════════════════════════════════════════
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
@@ -25,15 +24,12 @@
 % ═══════════════════════════════════════════════════════════════════
 % Title and Authors
 % ═══════════════════════════════════════════════════════════════════
-\title{Grammar-Constrained Autoregressive Transformer for Telugu Handwritten Text Recognition}
+\title{Telugu Handwritten Word Recognition using Autoregressive Transformer Decoder with Joint CTC-Attention Training}
 
 \author{
-\IEEEauthorblockN{Bhargav}
-\IEEEauthorblockA{
-\textit{Department of Computer Science and Engineering} \\
-\textit{BVRIT Hyderabad College of Engineering for Women} \\
-Hyderabad, India \\
-bhargav@example.com}
+\IEEEauthorblockN{Sakilam Bhargav\IEEEauthorrefmark{1}, Dr. R. Venkata Ramana Chary\IEEEauthorrefmark{1}, Thatha Nikitha\IEEEauthorrefmark{1}, Sabavat Vinod Nayak\IEEEauthorrefmark{1}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}\textit{Dept. of CSE (Data Science), B.V. Raju Institute of Technology}, Narsapur, India \\
+23211a67a7@bvrit.ac.in, ramanachary.rv@bvrit.ac.in, 23211a67b6@bvrit.ac.in, 23211a67a6@bvrit.ac.in}
 }
 
 \maketitle
@@ -42,7 +38,7 @@ bhargav@example.com}
 % Abstract
 % ═══════════════════════════════════════════════════════════════════
 \begin{abstract}
-Handwritten text recognition (HTR) for Telugu---the fourth most spoken scheduled language in India---remains significantly under-explored compared to Latin and East Asian scripts. Telugu's complex syllabic orthography, with 56 base consonants, 16 vowels, and hundreds of virama-based conjunct forms, poses unique challenges for sequence-to-sequence models. In this paper, we present a comprehensive study comparing Connectionist Temporal Classification (CTC) and autoregressive Transformer-based decoders for Telugu HTR. Our architecture employs a modified ResNet-18 encoder that preserves spatial width, coupled with either a BiLSTM-CTC decoder or a cross-attentive Transformer decoder with auxiliary CTC training. We further propose a data-driven Telugu linguistic constraint mask that penalizes orthographically invalid character transitions during decoding. Evaluated on the IIIT-HW-Telugu benchmark dataset (17,910 test images), our CTC baseline achieves a Character Error Rate (CER) of 3.91\% [95\% CI: 3.79\%, 4.03\%], establishing a new state-of-the-art among lexicon-free approaches. Our ablation study reveals that (1) auxiliary CTC loss is critical for Transformer decoder convergence, reducing CER from 5.43\% to 4.89\%, and (2) the CTC baseline outperforms all Transformer variants on this word-level task, suggesting that alignment-free models remain competitive for well-segmented Indic script recognition. All code is publicly available at \url{https://github.com/[your-username]/telugu-htr}.
+Telugu handwriting recognition remains difficult, largely because of the script's syllabic structure. Consonants fuse with vowel diacritics and stack into conjuncts via the virama; the resulting compound glyphs bear little visual resemblance to their constituent characters. We compare a CNN-BiLSTM-CTC baseline with an autoregressive Transformer decoder trained under a joint CTC-attention loss on the IIIT-HW-Telugu benchmark (80k training images, 17,910 test). Both decoders share a stride-modified ResNet-18 encoder that preserves horizontal resolution for sequential decoding. We also construct a character bigram transition matrix from the training labels and apply it as a soft constraint during inference. The best Transformer configuration achieves 3.66\% CER, a 6.4\% relative reduction over the CTC baseline's 3.91\%. Two details proved critical for convergence: scaling token embeddings by $\sqrt{d_{\text{model}}}$ and tying input--output embedding weights. An earlier decoder lacking both still trained but plateaued at 4.89\% CER---below the CTC baseline---though that comparison confounds several hyperparameters and is not an isolated ablation. Error analysis reveals a practical trade-off. CTC scatters small substitutions across many samples; the Transformer is more accurate on average but occasionally exhibits what we term \textit{autoregressive collapse}, confidently emitting a valid Telugu word unrelated to the input image. Code and trained weights are available; see the Reproducibility section.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -54,22 +50,26 @@ handwritten text recognition, Telugu, CTC, Transformer, autoregressive decoding,
 % ═══════════════════════════════════════════════════════════════════
 \section{Introduction}
 
-Handwritten text recognition (HTR) has witnessed remarkable progress for Latin-script languages, driven by large-scale datasets and the adoption of encoder-decoder architectures with attention mechanisms~\cite{vaswani2017attention, li2023trocr}. However, Indic scripts---particularly Telugu---remain significantly under-explored despite their substantial speaker populations. Telugu is spoken by over 82 million native speakers, making it the fourth most spoken scheduled language in India and one of the six classical languages recognized by the Government of India~\cite{ethnologue2024}.
+Handwritten text recognition (HTR) for Latin scripts now routinely achieves single-digit character error rates on standard benchmarks such as IAM and RIMES~\cite{vaswani2017attention, li2023trocr}. Indic scripts lag behind. Telugu, spoken natively by over 80~million people and designated one of India's classical languages~\cite{ethnologue2024}, has received comparatively little HTR attention relative to its speaker population.
 
-Telugu's writing system presents unique challenges for HTR systems. Unlike Latin scripts, Telugu employs a complex syllabic orthography comprising 56 base consonants (\textit{hallulu}), 16 vowels (\textit{acchulu}), and vowel diacritics (\textit{matras}) that modify consonants. The virama character (\textit{halant}, \raisebox{-0.2ex}{\large\textbf{.}}) creates conjunct consonants (\textit{vattu} forms), yielding hundreds of compound characters. These compound forms fundamentally alter glyph shapes, creating a vocabulary of visual patterns far exceeding that of alphabetic scripts.
+The difficulty is largely structural. Telugu has 36~base consonants (\textit{hallulu}), 16~vowels (\textit{acchulu}), and vowel diacritics (\textit{matras}) that attach to consonant glyphs and alter their shape. The virama character (\textit{halant}, U+0C4D) stacks consonants into conjuncts (\textit{vattu} forms), producing compound glyphs that can be visually unrelated to their constituent consonants. Latin letters, by contrast, retain roughly the same shape regardless of context.
 
-Prior work on Telugu HTR has primarily focused on CNN-RNN architectures with CTC decoding~\cite{dutta2018, gongidi2021iiit}, achieving error rates of 6--15\%. Attention-based approaches~\cite{deshpande2021} have shown promise but have not been systematically compared against CTC baselines on standardized benchmarks. Furthermore, the linguistic structure of Telugu---particularly the strict rules governing virama-consonant transitions---has not been exploited during decoding.
+Current HTR systems generally follow one of two decoding strategies. CTC~\cite{graves2006ctc} avoids character-level bounding boxes by having the encoder emit a distribution at every time step; dynamic programming then marginalises over all alignments consistent with the target label sequence. CTC is fast and effective for left-to-right scripts, but each output position is predicted independently. Autoregressive (AR) Transformer decoders~\cite{vaswani2017attention} generate characters one at a time, conditioning each prediction on the full history of previously emitted tokens. This enables the decoder to capture inter-character dependencies---for example, that a particular vowel diacritic rarely follows a certain consonant cluster in Telugu---at the cost of slower inference and exposure bias, where an early decoding error propagates into all subsequent predictions.
 
-In this paper, we make the following contributions:
+With sufficient pre-training data, Transformers outperform CTC on English HTR. TrOCR~\cite{li2023trocr} and PARSeq~\cite{bautista2022parseq} demonstrated this on benchmarks comprising millions of images. For low-resource scripts the evidence is less clear: Gongidi and Jawahar~\cite{gongidi2021iiit} observed that CTC remains competitive on Indic languages when labelled data is scarce. This motivates the central question of our work: \textit{given roughly 80k Telugu word images, does a Transformer decoder outperform a well-tuned CTC baseline, and by how much?}
+
+Specifically, we make the following contributions:
 
 \begin{enumerate}
-    \item We propose a modified ResNet-18 encoder that preserves spatial width information, enabling the extraction of ordered visual feature sequences from handwritten word images.
+    \item A shared ResNet-18 visual encoder with modified stride patterns that keeps horizontal resolution intact for both the CTC and Transformer decoders.
     
-    \item We conduct a rigorous ablation study comparing five decoder configurations: CTC baseline, autoregressive (AR) Transformer with and without auxiliary CTC loss, and AR Transformer with a data-driven Telugu linguistic constraint mask.
+    \item An autoregressive Transformer decoder trained with a joint CTC-attention loss, along with two architectural details -- embedding scaling and weight tying -- that in our experience separated a decoder that merely trains from one that outperforms the CTC baseline.
     
-    \item We introduce a bigram-based Telugu grammar mask that penalizes orthographically invalid character transitions during autoregressive decoding.
+    \item A data-driven Telugu character transition matrix built from training-set bigram counts, tested here as a soft decoding constraint.
     
-    \item We establish a new lexicon-free state-of-the-art on the IIIT-HW-Telugu benchmark, achieving 3.91\% CER with our CTC baseline---a 39\% relative improvement over the previous best lexicon-free result~\cite{gongidi2021iiit}.
+    \item To our knowledge, the lowest lexicon-free CER reported on the IIIT-HW-Telugu benchmark~\cite{gongidi2021iiit}: 3.66\%, down from the 4.58\% that Dutta~et~al.~\cite{dutta2018} obtained.
+
+    \item A methodological caution for Indic HTR: because conditioning on the presence of a virama also conditions on word length, CER computed over compound and simple subsets is not directly comparable, and the apparent advantage on compound words disappears once measured at the word level.
 \end{enumerate}
 
 % ═══════════════════════════════════════════════════════════════════
@@ -79,88 +79,87 @@ In this paper, we make the following contributions:
 
 \subsection{CTC-Based Handwriting Recognition}
 
-Connectionist Temporal Classification (CTC)~\cite{graves2006ctc} has been the dominant paradigm for HTR, enabling end-to-end training without explicit character-level alignment. Shi~et~al.~\cite{shi2017crnn} introduced the CRNN architecture combining convolutional feature extraction with BiLSTM sequence modeling and CTC decoding, establishing a strong baseline that remains competitive. Recent improvements include width-preserving encoder modifications~\cite{puigcerver2017}, data augmentation strategies, and language-model-based post-processing~\cite{scheidl2018word}.
+CTC~\cite{graves2006ctc} remains the dominant loss for HTR because it requires only image--transcript pairs, not character-level bounding boxes. The CRNN pipeline of Shi~et~al.~\cite{shi2017crnn}---convolutional features fed into a BiLSTM and decoded with CTC---established the standard baseline architecture. Puigcerver~\cite{puigcerver2017} later demonstrated that width-preserving convolutions improve the encoder, and Scheidl~et~al.~\cite{scheidl2018word} integrated language-model-aware beam search into CTC decoding. Individually these refinements yield modest gains, but collectively they have kept CTC competitive with attention-based alternatives.
 
 \subsection{Attention and Transformer-Based HTR}
 
-The success of Transformer architectures~\cite{vaswani2017attention} in natural language processing has motivated their adoption in HTR. TrOCR~\cite{li2023trocr} demonstrated state-of-the-art performance using a pre-trained vision Transformer encoder with a language model decoder. PARSeq~\cite{bautista2022parseq} introduced permuted autoregressive sequence models for scene text recognition. However, Transformer-based approaches typically require large-scale pre-training data and exhibit higher computational costs at inference.
+Transformer architectures entered HTR via scene-text recognition. TrOCR~\cite{li2023trocr} combines a pre-trained ViT encoder with a GPT-2-style decoder and reports strong results on several English benchmarks; its performance, however, depends on large-scale pre-training corpora that do not exist for most Indic scripts. PARSeq~\cite{bautista2022parseq} trains a single model on every permutation of character order, enabling both left-to-right and parallel decoding. To our knowledge, neither system has been evaluated on Telugu, so whether their gains transfer to a syllabic script remains open.
 
 \subsection{Indic Script Recognition}
 
-Telugu HTR research has been relatively sparse. Dutta~et~al.~\cite{dutta2018} introduced the IIIT-HW-Telugu dataset and established CNN-RNN-CTC baselines achieving approximately 15\% CER. Gongidi and Jawahar~\cite{gongidi2021iiit} extended this work with the IIIT-INDIC-HW-WORDS dataset spanning multiple Indic scripts, reporting 6.41\% CER for Telugu with an improved CRNN architecture. Deshpande~et~al.~\cite{deshpande2021} explored attention-based decoders for Indic scripts, achieving approximately 10.2\% CER. Recent work by PLATTER~\cite{platter2025} addresses page-level Indic HTR but focuses on Hindi and Bangla. The lexicon-constrained approach by Gongidi and Jawahar achieves 1.52\% CER but requires a dictionary, limiting its applicability to open-vocabulary scenarios.
+Published work on Telugu HTR specifically is limited. Dutta~et~al.~\cite{dutta2018} trained CNN-RNN-CTC pipelines on IIIT-HW-Telugu and reported 9.15\% CER, reduced to 4.58\% with IAM pre-training. Gongidi and Jawahar~\cite{gongidi2021iiit} introduced the broader IIIT-INDIC-HW-WORDS benchmark and obtained 6.41\% CER with a CRNN; lexicon-constrained decoding lowered this to 1.52\%, though such decoding is limited to a closed vocabulary. The PLATTER system~\cite{platter2025} addressed page-level Indic HTR but evaluated only on Hindi and Bangla, not Telugu.
 
-\subsection{Linguistic Constraints in Sequence Models}
+\subsection{Joint CTC-Attention Training}
 
-Incorporating linguistic knowledge into decoding has been explored through lexicon-based CTC decoding~\cite{scheidl2018word}, language model re-scoring~\cite{hwang2016character}, and constrained beam search~\cite{anderson2017guided}. For Indic scripts, phonological and orthographic rules provide structured constraints that can be encoded as transition matrices. Our approach is most similar to grammar-constrained decoding~\cite{shin2021grammar}, but operates at the character level using data-driven bigram statistics rather than formal grammar rules.
+Watanabe~et~al.~\cite{watanabe2017hybrid} demonstrated in speech recognition that an auxiliary CTC loss alongside an attention decoder accelerates convergence. The CTC branch encourages the encoder to produce roughly time-aligned features, giving the attention mechanism a simpler alignment to learn. Michael~et~al.~\cite{michael2019evaluating} applied the same joint-loss formulation to HTR and reported faster convergence and fewer attention-collapse episodes relative to pure attention training. We adopt this formulation for our Transformer decoder.
 
 % ═══════════════════════════════════════════════════════════════════
 % III. PROPOSED METHOD
 % ═══════════════════════════════════════════════════════════════════
 \section{Proposed Method}
 
-Our system comprises four components: (A)~a CNN feature encoder, (B)~a CTC baseline decoder, (C)~an autoregressive Transformer decoder with auxiliary CTC training, and (D)~a Telugu linguistic constraint mask. Fig.~\ref{fig:architecture} illustrates the overall architecture.
+The system comprises four components, illustrated in Fig.~\ref{fig:architecture}: a shared CNN feature encoder, a CTC baseline decoder, an autoregressive Transformer decoder with an auxiliary CTC head, and an optional Telugu character-transition mask applied during inference.
 
 \begin{figure*}[t]
     \centering
-    \includegraphics[width=0.90\textwidth]{figures/architecture_diagram.png}
-    \caption{System architecture. A modified ResNet-18 encoder extracts width-preserving features from input images ($B \times 1 \times 64 \times 512 \rightarrow B \times 64 \times 256$). Two decoder pathways are compared: \textbf{Path~A}~(CTC Baseline) uses a BiLSTM with CTC decoding; \textbf{Path~B}~(AR Transformer) uses a cross-attentive Transformer decoder with auxiliary CTC training and an optional Telugu grammar mask at inference.}
+    \includegraphics[width=0.92\textwidth]{figures/system_architecture.jpg}
+    \caption{System overview. The stride-patched ResNet-18 encoder turns a word image into a 64-step feature sequence, keeping the layer~3--4 strides at $(2,1)$ rather than $(2,2)$. Two decoder paths then share this representation: \textbf{Path~A} runs it through a 2-layer BiLSTM for CTC decoding, while \textbf{Path~B} refines it with a 3-layer Transformer encoder, branches off an auxiliary CTC head ($\lambda{=}0.3$), and decodes autoregressively with a 6-layer Transformer decoder. An optional Telugu grammar mask penalises unlikely character transitions at inference time.}
     \label{fig:architecture}
 \end{figure*}
 
 \subsection{CNN Feature Encoder}
 
-We employ a ResNet-18~\cite{he2016resnet} backbone pre-trained on ImageNet, modified to preserve spatial width. Standard ResNet applies aggressive spatial downsampling, producing a $1 \times 1$ feature map. For HTR, horizontal spatial order must be maintained to preserve character sequencing. We modify the architecture as follows:
+The visual encoder is a ResNet-18~\cite{he2016resnet} pre-trained on ImageNet, with modified spatial downsampling. An unmodified ResNet-18 reduces both height and width by a factor of 32; for a 512-pixel-wide input this would leave only 16~horizontal positions, insufficient for CTC or attention decoding of a typical 8--10 character Telugu word. We address this by setting the stride of the first convolution in layers~3 and~4 from $(2,2)$ to $(2,1)$:
+\begin{equation}
+    \text{layer3}[0].\text{stride}: (2,2) \rightarrow (2,1)
+\end{equation}
+\begin{equation}
+    \text{layer4}[0].\text{stride}: (2,2) \rightarrow (2,1)
+\end{equation}
 
-\begin{enumerate}
-    \item The first convolutional layer is changed from 3-channel to 1-channel input (grayscale images).
-    \item Vertical pooling is applied aggressively (stride adjustments in layers 3 and 4) to collapse the height dimension to 1.
-    \item Horizontal pooling is minimized, preserving a temporal sequence of length $T = W / 8 = 64$ for input width $W = 512$.
-    \item A $1 \times 1$ convolution projects the 512-dimensional ResNet output to $d_{\text{model}} = 256$.
-    \item Positional encoding is added to the resulting sequence.
-\end{enumerate}
-
-The encoder output is a tensor of shape $B \times 64 \times 256$, representing 64 ordered visual feature vectors for each image in the batch.
+Height is still reduced, but horizontal resolution is preserved, yielding feature maps of shape $[B, 512, 4, W/8]$. The input is grayscale, replicated to three channels to match the pre-trained weights. A $1 \times 1$ convolution projects the 512~channels to $d_{\text{model}}$, adaptive average pooling collapses the height dimension, and the result is a sequence of $T = W/8 = 64$ feature vectors. Sinusoidal positional encodings~\cite{vaswani2017attention} are added to preserve ordering information.
 
 \subsection{CTC Baseline Architecture}
 
-The CTC decoder consists of a 2-layer bidirectional LSTM with hidden size 256, producing 512-dimensional hidden states at each timestep. A linear projection maps these to logits over the vocabulary ($|V| = 91$ tokens). Training uses CTC loss~\cite{graves2006ctc} with the PAD token (index 0) serving as the CTC blank symbol.
-
-At inference, greedy CTC decoding is applied: the most probable token at each timestep is selected, and consecutive duplicates and blanks are removed to produce the final character sequence. The total parameter count for the CTC model is approximately 13.1M.
+For the CTC baseline, we stack a 2-layer bidirectional LSTM (hidden size~256, giving 512-dimensional concatenated states) on top of the shared encoder features, then project those states with a linear head to logits over the 91-token vocabulary. Training uses CTC loss~\cite{graves2006ctc}, with the PAD token (index~0) doubling as the CTC blank. BiLSTM weights are initialized with the orthogonal scheme, as is standard practice. At test time, decoding is greedy, collapsing repeated tokens and blanks in a single pass.
 
 \subsection{Autoregressive Transformer Decoder}
 
-The Transformer decoder follows the standard architecture~\cite{vaswani2017attention} with modifications for HTR:
+The Transformer decoder follows Vaswani~et~al.~\cite{vaswani2017attention} with several modifications. Each of the $N$ decoder layers contains masked self-attention, cross-attention over the encoder memory, and a feed-forward block with GELU activations. Layer normalisation is applied \textit{before} each sub-layer (Pre-LN), as recommended by Xiong~et~al.~\cite{xiong2020layer} for gradient stability in deep Transformers. An optional lightweight 3-layer Transformer encoder refines the CNN features before they reach the decoder's cross-attention heads.
 
-\begin{itemize}
-    \item \textbf{Input processing:} The encoder output passes through a 2-layer Transformer encoder with pre-layer normalization (Pre-LN) for feature refinement via global self-attention.
-    
-    \item \textbf{Token embedding:} Target characters are embedded into $d_{\text{model}} = 256$ dimensions with learned positional encoding.
-    
-    \item \textbf{Decoder:} A 4-layer Transformer decoder with 4 attention heads, feedforward dimension 1024, GELU activation, Pre-LN, and dropout 0.2. Causal masking enforces left-to-right autoregressive generation.
-    
-    \item \textbf{Training:} Cross-entropy loss with label smoothing ($\epsilon = 0.1$) is computed on teacher-forced decoder outputs.
-\end{itemize}
+Two architectural details proved critical for convergence on our Telugu dataset:
 
-\textbf{Joint CTC-CE Training.} A critical component is the auxiliary CTC head attached to the encoder output. The total loss is:
+\textbf{Embedding Scaling.} Scaling token embeddings by $\sqrt{d_{\text{model}}}$, as originally proposed by Vaswani~et~al.~\cite{vaswani2017attention}, proved necessary for our Telugu vocabulary:
+\begin{equation}
+    \mathbf{e}_t = \text{Embed}(y_t) \cdot \sqrt{d_{\text{model}}} + \text{PE}(t)
+\end{equation}
+Without this factor, embedding entries are initialised at considerably smaller magnitude than the sinusoidal positional encoding, and inspection of the resulting attention maps suggests the decoder attends based on position rather than token identity. We state this as an interpretation, not a measured causal mechanism. In either case, the failure mode is expected to be particularly damaging for Telugu, where word length varies widely and the same character recurs across many positions.
+
+\textbf{Weight Tying.} Following Press and Wolf~\cite{press2017output}, we tie the weight matrix between the input embedding layer and the output softmax projection:
+\begin{equation}
+    P(y_t | y_{<t}, \mathbf{h}) = \text{softmax}(\mathbf{W}_{\text{embed}} \cdot \mathbf{d}_t)
+\end{equation}
+This halves the embedding parameter count and forces each token vector to serve both as an input representation and an output predictor, acting as an implicit regulariser. The effect was consistent on our 91-token vocabulary.
+
+\textbf{Joint CTC-CE Training.} Training uses a weighted sum of cross-entropy and an auxiliary CTC loss computed on the encoder output:
 \begin{equation}
     \mathcal{L} = (1 - \lambda) \cdot \mathcal{L}_{\text{CE}} + \lambda \cdot \mathcal{L}_{\text{CTC}}
     \label{eq:joint_loss}
 \end{equation}
-where $\lambda = 0.3$ controls the CTC contribution. As shown in Section~\ref{sec:results}, this auxiliary loss is essential for Transformer convergence on this dataset, reducing CER from 5.43\% (without CTC) to 4.89\% (with CTC). The total parameter count for the AR model is approximately 17.3M.
+with $\lambda = 0.3$. The cross-entropy term includes label smoothing ($\epsilon = 0.05$, following Szegedy~et~al.~\cite{szegedy2016rethinking}). The CTC branch encourages the encoder to produce features that are already roughly aligned with target characters, which in turn allows the attention decoder to converge faster and more reliably.
 
 \subsection{Telugu Linguistic Constraint Mask}
 
-Telugu orthography imposes strict rules on character transitions. For example, a virama ({\large .}) must be followed by a consonant (to form a conjunct), and certain vowel sign combinations are illegal. We construct a binary validity matrix $\mathbf{M} \in \{0, 1\}^{|V| \times |V|}$ from training set bigram statistics:
-
+Telugu, like most languages, has phonotactic constraints -- not every character can follow every other character. We exploit this property by scanning the training transcripts, recording the character bigrams that actually occur, and storing the results in a binary matrix $\mathbf{M} \in \{0, 1\}^{|V| \times |V|}$:
 \begin{equation}
     \mathbf{M}[i][j] = \begin{cases} 1 & \text{if bigram } (c_i, c_j) \text{ observed in training} \\ 0 & \text{otherwise} \end{cases}
 \end{equation}
 
-During autoregressive decoding at step $t$, given the previously generated token $c_{t-1}$, the logits for the next token are modified:
+At each decoding step $t$, we look up the row corresponding to the most recently generated token $c_{t-1}$ and subtract a large penalty $\delta = 10.0$ from the logits of any character that was never observed following $c_{t-1}$ in the training data:
 \begin{equation}
-    \text{logit}'_j = \text{logit}_j - \alpha \cdot (1 - \mathbf{M}[c_{t-1}][j])
+    \ell'_j = \ell_j - \delta \cdot (1 - \mathbf{M}[c_{t-1}][j])
 \end{equation}
-where $\alpha = 10.0$ is a large penalty that effectively prevents selection of orthographically invalid characters. This mask is applied during both greedy and beam search decoding.
+We use a soft penalty rather than a hard mask deliberately, allowing the decoder to emit rare but potentially valid pairs that may simply not have appeared in the 80,000 training words.
 
 % ═══════════════════════════════════════════════════════════════════
 % IV. EXPERIMENTS
@@ -169,7 +168,7 @@ where $\alpha = 10.0$ is a large penalty that effectively prevents selection of 
 
 \subsection{Dataset}
 
-We evaluate on the IIIT-HW-Telugu dataset~\cite{dutta2018}, a widely-used benchmark for Telugu handwritten word recognition. The dataset contains handwritten word images collected from multiple writers, covering a diverse vocabulary of Telugu words.
+All our experiments run on the IIIT-HW-Telugu dataset~\cite{dutta2018, gongidi2021iiit}, a multi-writer collection of word-level handwritten Telugu images. Table~\ref{tab:dataset} summarises the split sizes.
 
 \begin{table}[htbp]
 \centering
@@ -177,7 +176,7 @@ We evaluate on the IIIT-HW-Telugu dataset~\cite{dutta2018}, a widely-used benchm
 \label{tab:dataset}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Split} & \textbf{Images} & \textbf{Vocab Size} & \textbf{Avg. Word Length} \\
+\textbf{Split} & \textbf{Images} & \textbf{Vocab Size} & \textbf{Avg. Length} \\
 \midrule
 Train & 80,693 & 87 chars & 8.7 chars \\
 Validation & 20,048 & -- & -- \\
@@ -187,10 +186,17 @@ Total & 118,651 & 91 tokens\textsuperscript{*} & -- \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\raggedright\small\textsuperscript{*}Including 4 special tokens: PAD, SOS, EOS, UNK.
+\raggedright\small\textsuperscript{*}Including 4 special tokens: PAD, SOS, EOS, UNK. All labels are NFC-normalized.
 \end{table}
 
-Input images are resized to $64 \times 512$ pixels with aspect-ratio-preserving padding. Grayscale normalization ($\mu = 0.5$, $\sigma = 0.5$) is applied. Training augmentation includes random affine transformations, elastic distortion, and Gaussian noise.
+Each image is resized to $64 \times 512$ pixels, with padding applied to the shorter side to preserve the aspect ratio. Pixel values are then normalized to the range $[-1, 1]$ using a mean of 0.5 and a standard deviation of 0.5. During training, we apply several on-the-fly augmentations to approximate the variability found in real handwriting: random rotation up to $\pm 5^{\circ}$ ($p{=}0.5$), random perspective warping ($p{=}0.3$), brightness and contrast jitter, morphological dilation or erosion to mimic pen-thickness changes ($p{=}0.3$), and elastic distortion via Gaussian-smoothed displacement fields ($\alpha{=}10$, $\sigma{=}3$, $p{=}0.3$). All of this runs on the CPU during data loading, so it adds essentially no GPU overhead. Fig.~\ref{fig:pipeline} lays out the full preprocessing pipeline.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/data_pipeline.jpg}
+    \caption{Preprocessing and augmentation pipeline. Every image passes through a set of fixed steps (grayscale, resize, pad, normalise), and during training only, through a chain of random augmentations as well. Each augmentation is applied independently at the probability shown, so every epoch ends up seeing a slightly different version of every sample.}
+    \label{fig:pipeline}
+\end{figure}
 
 \subsection{Implementation Details}
 
@@ -202,33 +208,36 @@ Input images are resized to $64 \times 512$ pixels with aspect-ratio-preserving 
 \toprule
 \textbf{Parameter} & \textbf{CTC} & \textbf{AR Transformer} \\
 \midrule
+$d_{\text{model}}$ & 256 & 384 \\
+Encoder layers & -- & 3 (Transformer) \\
+Decoder layers & 2 (BiLSTM) & 6 (Transformer) \\
+Attention heads & -- & 8 \\
+$d_{\text{ff}}$ & -- & 1,536 \\
 Batch size & 64 & 64 \\
 Learning rate & $3 \times 10^{-4}$ & $3 \times 10^{-4}$ \\
-LR schedule & Cosine annealing & Warmup + cosine \\
-Warmup steps & -- & 4,000 \\
+LR schedule & OneCycleLR & Warmup + cosine \\
+Warmup steps & implicit & 4,000 \\
 Optimizer & AdamW & AdamW \\
 Weight decay & $10^{-4}$ & $10^{-4}$ \\
-Grad clip & 5.0 & 5.0 \\
-Epochs & 50 & 50 \\
-Dropout & 0.2 & 0.2 \\
-Label smoothing & -- & 0.1 \\
+Dropout & 0.1 & 0.15 \\
+Label smoothing & -- & 0.05 \\
 CTC weight ($\lambda$) & -- & 0.3 \\
+Grad clip & 5.0 & 5.0 \\
+Epochs & 50 & 80 \\
 Mixed precision & FP16 & FP16 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-All experiments are conducted on a single NVIDIA RTX 3090 Ti GPU (24~GB) with PyTorch~2.7.1 and CUDA~11.8. The CTC model trains in approximately 3h~22m, and the AR Transformer in 3h~23m (50 epochs each). Mixed-precision training is enabled via PyTorch's GradScaler for memory efficiency.
+Every experiment ran on a single NVIDIA GPU with 24~GB of VRAM, using PyTorch~2.7.1 and CUDA~11.8. The AR Transformer has 31.16~M trainable parameters. Wall-clock training time came out to roughly 3.5~hours for the CTC model (50~epochs) and 5.4~hours for the AR Transformer (80~epochs), with both models trained in FP16 mixed precision via PyTorch's built-in GradScaler. Inference latencies reported in Section~\ref{sec:results} are per-image averages measured over the full test set at batch size~64 on the same GPU, and should be read as relative rather than absolute figures: they vary by roughly an order of magnitude with batch size and dataloader settings.
 
 \subsection{Evaluation Protocol}
 
-We report Character Error Rate (CER) and Word Error Rate (WER), computed as:
+We measure accuracy with two standard metrics. Character Error Rate~(CER) is the total edit distance summed across all test samples, divided by the total number of ground-truth characters:
 \begin{equation}
     \text{CER} = \frac{\sum_{i=1}^{N} \text{ED}(\hat{y}_i, y_i)}{\sum_{i=1}^{N} |y_i|}
 \end{equation}
-where $\text{ED}(\cdot, \cdot)$ is the edit distance (Levenshtein distance), $\hat{y}_i$ is the predicted character sequence, $y_i$ is the ground truth, and $|y_i|$ is the ground truth length. WER treats entire words as units.
-
-Statistical significance is assessed via non-parametric bootstrap resampling~\cite{efron1993bootstrap}. We construct 95\% confidence intervals (CIs) from 1,000 bootstrap resamples using the percentile method. Non-overlapping CIs indicate statistical significance at $\alpha = 0.05$.
+where $\text{ED}(\cdot, \cdot)$ denotes Levenshtein distance. Word Error Rate~(WER) is just the fraction of words where the prediction contains any error, however small. To quantify the uncertainty on each system's CER we use non-parametric bootstrap resampling~\cite{efron1993bootstrap} over test samples with 1,000 resamples, and report 95\% percentile confidence intervals. These are marginal intervals for each system evaluated independently; they are not a paired test of the difference between two systems, and we are careful below not to read significance directly off whether they overlap.
 
 % ═══════════════════════════════════════════════════════════════════
 % V. RESULTS AND ANALYSIS
@@ -236,159 +245,176 @@ Statistical significance is assessed via non-parametric bootstrap resampling~\ci
 \section{Results and Analysis}
 \label{sec:results}
 
-\subsection{Ablation Study}
+\subsection{Main Results}
 
-Table~\ref{tab:ablation} presents the complete ablation across five model configurations evaluated on the held-out test set ($N = 17{,}910$).
+Table~\ref{tab:ablation} lists CER, WER, and inference speed for every model variant we trained, all evaluated on the same 17,910 held-out test images.
 
 \begin{table*}[t]
 \centering
-\caption{Ablation Study on IIIT-HW-Telugu Test Set ($N = 17{,}910$)}
+\caption{Test-Set Results on IIIT-HW-Telugu ($N = 17{,}910$). ``Comp. CER'' is CER restricted to the 10,129 compound words containing at least one virama. Speed is mean per-image inference latency at batch size~64.}
 \label{tab:ablation}
-\begin{tabular}{llcccccc}
+\begin{tabular}{llccccc}
 \toprule
-\textbf{\#} & \textbf{Model} & \textbf{CER (\%)} & \textbf{WER (\%)} & \textbf{95\% CI (CER)} & \textbf{Compound CER} & \textbf{Simple CER} & \textbf{Speed (ms)} \\
+\textbf{\#} & \textbf{Model} & \textbf{CER (\%)} & \textbf{WER (\%)} & \textbf{95\% CI (CER)} & \textbf{Comp. CER (\%)} & \textbf{Speed (ms)} \\
 \midrule
-1 & CTC Baseline (BiLSTM) & \textbf{3.91} & \textbf{24.80} & [3.79, 4.03] & \textbf{3.70} & \textbf{4.29} & \textbf{2.7} \\
-2 & AR Transformer (unconstrained) & 4.89 & 29.83 & [4.75, 5.02] & 4.61 & 5.38 & 1.7 \\
-3 & AR + Telugu constraint & 4.99 & 29.71 & [4.85, 5.13] & 4.68 & 5.54 & 40.2 \\
-4 & AR + constraint + beam(5) & 4.85 & 29.49 & [4.72, 5.00] & 4.57 & 5.35 & 327.5 \\
-5 & AR (no CTC auxiliary) & 5.43 & 32.37 & [5.28, 5.58] & 4.99 & 6.21 & 1.7 \\
+1 & CTC Baseline (BiLSTM) & 3.91 & 24.80 & [3.79, 4.04] & 3.70 & \textbf{0.3} \\
+2 & AR Transformer (greedy, unconstrained) & 3.67 & 23.33 & [3.55, 3.79] & 3.32 & 1.4 \\
+3 & AR Transformer (greedy, constrained) & 3.74 & 23.32 & [3.60, 3.88] & 3.33 & 1.8 \\
+4 & AR Transformer (beam-5, unconstrained) & \textbf{3.66} & 23.34 & [3.54, 3.79] & \textbf{3.31} & 77.0 \\
+5 & AR Transformer (beam-5, constrained) & 3.67 & \textbf{23.28} & [3.55, 3.79] & 3.30 & 82.5 \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-\textbf{Key findings:}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/training_curves.png}
+    \caption{AR Transformer training curves over 80~epochs. \textbf{Top:} the joint loss ($0.7\mathcal{L}_{\text{CE}} + 0.3\mathcal{L}_{\text{CTC}}$) drops steadily on the training set, while validation loss flattens out around epoch~55. \textbf{Bottom:} validation CER bottoms out at 2.40\% at epoch~72 ($\star$), after which mild overfitting starts to creep in.}
+    \label{fig:training}
+\end{figure}
 
-\noindent\textbf{(1) CTC outperforms all Transformer variants.} The CTC baseline (Row~1) achieves 3.91\% CER, significantly outperforming the best Transformer configuration (Row~4, 4.85\% CER). The non-overlapping 95\% CIs ([3.79, 4.03] vs. [4.72, 5.00]) confirm statistical significance at $\alpha = 0.05$. We attribute this to the nature of the task: for well-segmented word images with short character sequences (mean length 8.7), the BiLSTM's bidirectional context and CTC's alignment-free decoding are sufficient, while the Transformer decoder's autoregressive overhead introduces unnecessary complexity.
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/ablation_comparison.png}
+    \caption{Test-set CER for every model configuration. All four Transformer variants (rows~2--5) beat the CTC baseline (row~1), though beam search only adds a small further gain on top of greedy decoding. Error bars show 95\% bootstrap confidence intervals.}
+    \label{fig:ablation}
+\end{figure}
 
-\noindent\textbf{(2) Auxiliary CTC loss is critical for Transformer convergence.} Comparing Row~5 (no CTC) with Row~2 (with CTC), the auxiliary CTC loss reduces CER from 5.43\% to 4.89\%---a 10\% relative improvement. This confirms that the CTC head acts as an alignment regularizer, forcing the encoder to learn ordered left-to-right feature representations that facilitate cross-attention in the Transformer decoder.
+We highlight three findings from these results (see also Figs.~\ref{fig:training} and~\ref{fig:ablation}):
 
-\noindent\textbf{(3) Telugu grammar constraints provide minimal benefit.} The linguistic constraint mask (Row~3 vs.~Row~2) marginally improves WER from 29.83\% to 29.71\% but slightly degrades CER from 4.89\% to 4.99\%. Combined with beam search (Row~4), WER improves further to 29.49\%. However, these improvements are not statistically significant (overlapping CIs) and come at substantial computational cost (40--327~ms vs.~1.7~ms per sample).
+\noindent\textbf{(1) The Transformer outperforms CTC, but convergence required specific architectural choices.} The best configuration (Row~4, beam-5, unconstrained) achieves 3.66\% CER against the CTC baseline's 3.91\%, a 6.4\% relative reduction. The two bootstrap intervals abut rather than overlap ([3.54,~3.79] vs.~[3.79,~4.04]), and the gap is consistent across all four Transformer variants and on both metrics, making a sampling artefact unlikely; a paired bootstrap over per-sample differences would be the stricter test, and we regard the current evidence as suggestive rather than conclusive. We note that our initial Transformer runs produced CER above the CTC baseline; performance improved only after adding embedding scaling and weight tying (Section~III-C).
+
+\noindent\textbf{(2) Beam search yields negligible gains.} Greedy decoding achieves 3.67\% CER; beam width 5 reduces this by only 0.01 percentage point. The confidence intervals overlap almost entirely, suggesting that encoder features, not the search strategy, are the binding constraint. Given the 55$\times$ increase in per-image latency, greedy decoding is the preferable operating point.
+
+\noindent\textbf{(3) The grammar mask produces mixed effects.} The Telugu transition matrix increases greedy CER from 3.67\% to 3.74\%, likely because it penalises rare-but-valid character pairs absent from the 80k training words. Constrained beam search, however, achieves the lowest WER across all configurations (23.28\%), indicating that the mask suppresses some whole-word errors at the cost of additional character-level substitutions.
 
 \subsection{Comparison with Published Results}
 
-Table~\ref{tab:comparison} compares our results with previously published methods on Telugu HTR benchmarks.
+Table~\ref{tab:comparison} compares our results with previously reported Telugu HTR numbers.
 
 \begin{table}[htbp]
 \centering
 \caption{Comparison with Published Telugu HTR Results}
 \label{tab:comparison}
-\begin{tabular}{lcc}
+\begin{tabular}{lccc}
 \toprule
-\textbf{Method} & \textbf{CER (\%)} & \textbf{Lexicon} \\
+\textbf{Method} & \textbf{CER (\%)} & \textbf{WER (\%)} & \textbf{Lexicon} \\
 \midrule
-Dutta et al. (2018)~\cite{dutta2018} & $\sim$15.0 & No \\
-Deshpande et al. (2021)~\cite{deshpande2021} & $\sim$10.2 & No \\
-Gongidi \& Jawahar (2021)~\cite{gongidi2021iiit} & $\sim$6.41 & No \\
-Gongidi \& Jawahar (2021)~\cite{gongidi2021iiit} & $\sim$1.52 & \textbf{Yes} \\
+Dutta et al.~\cite{dutta2018} CNN-BLSTM & 9.15 & 37.92 & No \\
+Dutta et al.~\cite{dutta2018} + IAM pretrain & 4.58 & 23.98 & No \\
+Gongidi \& Jawahar~\cite{gongidi2021iiit} CRNN & 6.41 & -- & No \\
+Gongidi \& Jawahar~\cite{gongidi2021iiit} + Lexicon & 1.52 & 2.84 & \textbf{Yes} \\
 \midrule
-\textbf{Ours: CTC Baseline} & \textbf{3.91} & No \\
-Ours: AR + beam(5) & 4.85 & No \\
+Ours: CTC Baseline & 3.91 & 24.80 & No \\
+\textbf{Ours: AR Transformer} & \textbf{3.66} & \textbf{23.28} & No \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Our CTC baseline establishes a new state-of-the-art among lexicon-free approaches, achieving a \textbf{39\% relative improvement} over the previous best lexicon-free result (6.41\%~\cite{gongidi2021iiit}) and a \textbf{62\% relative improvement} over Deshpande~et~al.~\cite{deshpande2021}. The only system achieving lower CER (1.52\%) employs a lexicon (dictionary), which constrains predictions to known words and is inapplicable to out-of-vocabulary text.
+Among lexicon-free systems, our AR Transformer achieves the lowest CER on IIIT-HW-Telugu to our knowledge. The 3.66\% CER represents a \textbf{20\% relative reduction} from the 4.58\% obtained by Dutta~et~al.~\cite{dutta2018} with IAM pre-training, and a \textbf{43\% relative reduction} from the CRNN of Gongidi and Jawahar~\cite{gongidi2021iiit}. The only system reporting lower CER (1.52\%) relies on a closed lexicon, restricting its output to previously seen words.
+
+One caveat applies to the whole table. The prior numbers are quoted from their source papers, and we could not confirm that every one of them was computed on exactly the split of 17,910 test images we use here -- Gongidi and Jawahar in particular report on the broader IIIT-INDIC-HW-WORDS collection. These comparisons should therefore be read as indicative of the range of published performance on handwritten Telugu words, not as controlled head-to-head measurements. The comparison between the final two rows -- our own CTC baseline against our AR Transformer -- is the one in this paper that is genuinely controlled, since both share an encoder, a split, and a training budget.
 
 \subsection{Compound vs.\ Simple Character Analysis}
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/compound_vs_simple.png}
-    \caption{CER comparison between compound characters (containing virama/conjuncts) and simple characters across all model variants. Compound characters are consistently recognized more accurately.}
-    \label{fig:compound}
-\end{figure}
+To localise each model's errors, we partition the test set into \textit{compound} words containing at least one virama ($n = 10{,}129$) and \textit{simple} words with no virama ($n = 7{,}781$). Table~\ref{tab:compound} reports CER and WER for each subset along with mean ground-truth length.
 
-We categorize test samples into \textit{compound} (containing at least one virama, $n = 10{,}129$) and \textit{simple} (no virama, $n = 7{,}781$) words. Fig.~\ref{fig:compound} presents the per-category CER.
+\begin{table}[htbp]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Error Rates by Word Type (AR = beam-5, unconstrained)}
+\label{tab:compound}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Word Type} & \textbf{$n$} & \textbf{Len.} & \textbf{CTC / AR} & \textbf{CTC / AR} \\
+ & & \textbf{(chars)} & \textbf{CER (\%)} & \textbf{WER (\%)} \\
+\midrule
+Compound (virama) & 10,129 & 9.87 & 3.70 / \textbf{3.31} & 25.72 / \textbf{23.47} \\
+Simple (no virama) & 7,781 & 7.23 & 4.29 / 4.28 & 23.60 / \textbf{23.18} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Counter-intuitively, compound characters are recognized \textit{more} accurately (CER 3.70\%) than simple characters (CER 4.29\%) across all models. We hypothesize that compound forms create more visually distinctive glyph shapes, providing stronger discriminative features to the CNN encoder. Simple characters, particularly visually similar consonant-matra pairs, produce more ambiguous feature representations.
+By CER alone, both models appear to perform \textit{better} on compound words than on simple ones---a counter-intuitive result. One might conclude that conjunct glyphs, despite their visual complexity, are sufficiently distinctive to be recognised easily. The WER column contradicts this: at the word level, both models perform slightly \textit{worse} on compound words (CTC 25.72\% vs.\ 23.60\%, AR 23.47\% vs.\ 23.18\%).
+
+The discrepancy is a length effect. Compound words in this test set average 9.87 characters against 7.23 for simple words, roughly 36\% longer. Because CER divides accumulated edit distance by total ground-truth characters, a longer word spreads the same word-level mistake over a larger denominator and so registers a lower CER. Normalising for this, the mean edit distance per erroneous word is nearly identical across the two subsets (1.39 characters for compound, 1.33 for simple). We flag this because subset CER comparisons are common in Indic HTR papers, and where the subsets differ systematically in word length -- which is exactly what conditioning on the presence of a virama does -- CER differences between them are not directly interpretable as differences in difficulty.
+
+What the breakdown does show cleanly is \textit{where} the Transformer earns its advantage. On compound words it cuts CER from 3.70\% to 3.31\%, a 10.5\% relative reduction, and WER from 25.72\% to 23.47\%. On simple words the two models are indistinguishable (4.29\% vs.\ 4.28\% CER). Practically all of the Transformer's aggregate gain therefore comes from conjunct-bearing words, which is consistent with the idea that modelling dependencies between adjacent characters helps most where those dependencies are structurally strongest.
 
 \subsection{Qualitative Error Analysis}
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\columnwidth]{figures/confusion_matrix_ctc.png}
-    \caption{Character-level confusion matrix for the CTC baseline model, showing the top substitution errors. The most frequent confusions involve visually similar character pairs.}
+    \includegraphics[width=\columnwidth]{figures/confusion_matrix_ar_v2.png}
+    \caption{Character-level confusion matrix for the AR Transformer on the test set. Darker cells mean more frequent confusions. Most of the errors fall between consonant pairs that share stroke structure (e.g., \textit{dda}$\leftrightarrow$\textit{da}) and vowel signs that differ by only a single stroke.}
     \label{fig:confusion}
 \end{figure}
 
-Fig.~\ref{fig:confusion} presents the character-level confusion matrix for the CTC baseline. The most frequent substitution errors involve:
+The aggregate CER numbers mask an important distinction: the two architectures produce qualitatively different error patterns. Fig.~\ref{fig:confusion} shows the Transformer's character confusion matrix; Fig.~\ref{fig:examples} presents representative predictions from both models.
 
-\begin{itemize}
-    \item \textbf{Vowel sign confusion:} Short and long matra pairs (e.g., \textit{i-matra} vs.\ \textit{ii-matra}) that differ by a small visual stroke.
-    \item \textbf{Consonant similarity:} Characters with shared stroke patterns (e.g., \textit{ga} vs.\ \textit{da}) where the distinguishing feature is subtle.
-    \item \textbf{Numeral confusion:} Telugu numerals (e.g., \textit{35}) being misrecognized as character sequences with similar stroke patterns.
-\end{itemize}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/prediction_examples.png}
+    \caption{Side-by-side predictions from CTC and the AR Transformer. The top rows are cases both models get right; the bottom rows show typical failures. CTC tends to swap visually similar consonants, while the Transformer occasionally hallucinates a fluent-sounding but completely wrong word.}
+    \label{fig:examples}
+\end{figure}
 
-These error patterns suggest that higher-resolution feature extraction or character-level attention mechanisms could yield further improvements.
+\textbf{CTC errors} are predominantly \textit{local substitutions}---one or two characters replaced by visually similar alternatives. The most frequent confusions involve consonant pairs with similar stroke geometry (\textit{dda}~$\leftrightarrow$~\textit{da}, 478 cases in our test set) and vowel-sign pairs differing by a single stroke (\textit{e-matra}~$\leftrightarrow$~\textit{i-matra}, 169 cases). Because each CTC prediction depends only on the encoder and not on prior outputs, these errors are distributed relatively uniformly across the test set and rarely corrupt more than two characters per word.
 
-\subsection{Statistical Significance}
+\textbf{Transformer errors} follow a different pattern. The decoder recognises most words correctly, accounting for its lower overall CER, but its failures tend to be severe. We refer to this failure mode as \textit{autoregressive collapse}: the decoder confidently outputs a valid Telugu word that bears no relation to the input image. In one observed case, four visually distinct input images all produced the same common-word prediction. The mechanism is straightforward: if the first character is decoded incorrectly, the decoder's self-attention over its own output history reinforces the error, producing a coherent but entirely wrong character sequence. CTC is structurally immune to this failure mode because its predictions carry no feedback from prior outputs.
 
-Statistical significance is assessed via non-overlapping bootstrap 95\% CIs. The CTC baseline [3.79\%, 4.03\%] and best AR variant [4.72\%, 5.00\%] have non-overlapping intervals, confirming the CTC model's superiority is statistically significant ($p < 0.05$).
+\subsection{Validation-Test Gap}
 
-Conversely, AR greedy [4.75\%, 5.02\%] vs.\ AR beam search [4.72\%, 5.00\%] have fully overlapping intervals, indicating that beam search provides no statistically significant improvement despite a $192\times$ increase in inference latency (1.7~ms to 327.5~ms per sample).
+The Transformer's best validation CER was 2.40\% (epoch~72), substantially lower than the 3.67\% observed on the test set. We attribute this gap to three factors:
+
+\textbf{(1) Writer mismatch.} The test set likely contains handwriting styles underrepresented in the validation split. The Transformer, with more parameters than the CTC model, is more susceptible to overfitting to writer-specific characteristics.
+
+\textbf{(2) Checkpoint selection bias.} Selecting the checkpoint with the lowest validation CER from 80~epochs introduces a mild form of overfitting to the validation distribution.
+
+\textbf{(3) Limited training data.} Systems such as TrOCR~\cite{li2023trocr} and PARSeq~\cite{bautista2022parseq} train on millions of images with additional pre-training. Our 80k samples may be insufficient for the Transformer to generalise as broadly as it could with a larger corpus.
 
 % ═══════════════════════════════════════════════════════════════════
 % VI. DISCUSSION
 % ═══════════════════════════════════════════════════════════════════
 \section{Discussion}
 
-\subsection{Why CTC Outperforms the Transformer}
+The CTC-versus-Transformer comparison is less straightforward than the headline CER numbers indicate.
 
-The superiority of the CTC baseline over Transformer-based decoders warrants analysis. We identify three factors:
+CTC has a structural advantage: it assumes left-to-right character order and that encoder outputs are already roughly aligned with them. This built-in prior acts as free regularisation and reduces training cost---CTC reaches 3.91\% CER in 50~epochs (3.5~hours), whereas the Transformer requires 80~epochs (5.4~hours) to reach 3.66\%. The Transformer must learn left-to-right alignment through cross-attention. We emphasise that this is an observation about training budget, not a controlled data-efficiency experiment: we did not sweep training-set size and cannot determine at what scale the two curves would cross.
 
-\textbf{(1) Short sequence lengths.} The average word length in IIIT-HW-Telugu is 8.7 characters. Autoregressive decoders excel at modeling long-range dependencies in extended sequences (sentences, paragraphs), but for short words, the BiLSTM's bidirectional context provides sufficient modeling capacity.
+The autoregressive collapse described in Section~\ref{sec:results} has practical implications. In a pipeline digitising historical Telugu manuscripts or legal records, a model that occasionally produces a fluent but entirely incorrect word is more problematic than one that makes frequent small substitutions, because the errors are harder to detect during review. For such applications CTC may be the safer deployment choice, whereas the Transformer is preferable when minimising average CER is the primary objective.
 
-\textbf{(2) Well-segmented inputs.} The test images are pre-segmented individual words. CTC's alignment-free nature is well-suited to this setting, whereas the Transformer decoder's cross-attention must learn word-level alignment from scratch---a task with limited benefit when spatial features are already well-ordered by the width-preserving encoder.
+The Telugu grammar mask did not improve CER. This is expected in retrospect: the transition matrix was built exclusively from training-set bigrams, so any valid character pair absent from those 80k words receives a penalty at test time. A mask derived from formal phonological rules or from a larger unlabelled text corpus would likely perform better.
 
-\textbf{(3) Training data scale.} Transformer architectures typically require larger datasets to realize their capacity advantages. With 80K training samples, the BiLSTM-CTC model may have a more favorable parameter-to-data ratio (13.1M vs.\ 17.3M parameters).
+\subsection{Limitations}
 
-These findings suggest that for word-level Indic HTR with segmented inputs, CTC remains the recommended approach. Transformers may prove superior for line-level or page-level recognition where longer sequences and language modeling capabilities become critical.
+Three limitations should be noted. First, our observation that embedding scaling and weight tying are necessary for convergence is based on our training runs rather than a controlled ablation with all other variables fixed; we report it as a practical engineering finding rather than a measured causal effect. A related ablation on an earlier architecture version removed the auxiliary CTC loss and saw CER rise from 4.89\% to 5.43\%, supporting the joint-loss design, though those numbers come from a different configuration and are not directly comparable to Table~\ref{tab:ablation}. Second, the 1.27-point gap between best validation CER (2.40\%) and test CER (3.67\%) is non-trivial, and because the IIIT-HW-Telugu splits are not writer-disjoint by construction, we cannot fully disentangle writer overfitting from checkpoint-selection bias. Third, our comparison against published systems is not controlled, for the reasons given in Section~V-B.
 
-\subsection{Linguistic Constraints: Marginal Impact}
+\subsection{Future Work}
 
-The Telugu grammar mask provides only marginal and statistically insignificant improvements in accuracy. We attribute this to:
-
-\begin{enumerate}
-    \item The model already achieves low error rates ($<$5\% CER), leaving few errors for the constraint mask to correct.
-    \item The data-driven bigram matrix may be overly permissive, allowing most transitions observed in training rather than encoding strict orthographic rules.
-    \item The penalty-based approach ($\alpha = 10.0$) is a soft constraint that does not guarantee grammaticality, unlike hard masking.
-\end{enumerate}
-
-Future work could explore grammar masks derived from formal Telugu phonological rules, or integration with character-level language models for more effective linguistic reasoning.
-
-\subsection{Threats to Validity}
-
-\textbf{Internal validity.} The linguistic constraint matrix is constructed from training set bigram statistics rather than formal Telugu grammar rules. Rare but valid character sequences absent from the training data may be incorrectly penalized during constrained decoding.
-
-\textbf{External validity.} The IIIT-HW-Telugu dataset contains segmented word images; results may not generalize to unconstrained page-level recognition where word segmentation errors compound. The dataset contains modern Telugu handwriting; performance on historical manuscripts or significantly degraded documents is untested. Cross-dataset evaluation on additional Telugu corpora (e.g., CHIPS) would further strengthen generalizability claims.
-
-\textbf{Construct validity.} CER and WER are computed at the word level. For practical deployment, sentence-level or paragraph-level metrics with a language model would be more representative of real-world performance. Inference speed measurements include only GPU computation time and exclude I/O, preprocessing, and postprocessing overhead.
+Several directions follow from this work. Pre-training the Transformer decoder on synthetic Telugu text rendered from digital fonts could supply language-modelling knowledge without additional handwritten data. Non-autoregressive decoders such as PARSeq~\cite{bautista2022parseq} may combine the Transformer's contextual modelling with CTC-style parallel decoding, avoiding exposure bias. An ensemble of CTC and Transformer outputs is also worth investigating, given that their error profiles are largely complementary.
 
 % ═══════════════════════════════════════════════════════════════════
-% VII. CONCLUSION AND FUTURE WORK
+% VII. CONCLUSION
 % ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
 
-We presented a comprehensive study of CTC and Transformer-based architectures for Telugu handwritten text recognition on the IIIT-HW-Telugu benchmark. Our modified ResNet-18 encoder with width-preserving feature extraction, combined with a BiLSTM-CTC decoder, achieves 3.91\% CER---a new state-of-the-art for lexicon-free Telugu HTR, representing a 39\% relative improvement over prior work.
-
-Our ablation study yields three key insights: (1)~auxiliary CTC loss is essential for training autoregressive Transformer decoders on Indic HTR tasks, providing a 10\% relative CER reduction; (2)~CTC baselines outperform Transformer decoders on well-segmented word-level recognition tasks with short sequences; and (3)~data-driven Telugu linguistic constraints provide minimal accuracy improvements at current error rates, suggesting that the model already captures most orthographic patterns implicitly.
-
-\textbf{Future work} will explore: (a)~line-level and page-level recognition where Transformers' language modeling capabilities are expected to provide greater advantages; (b)~formal phonology-based grammar masks derived from Telugu linguistic rules; (c)~pre-training on synthetic Telugu text data generated from Unicode fonts; and (d)~cross-script transfer learning leveraging shared Brahmic script features across Telugu, Kannada, Tamil, and other Dravidian languages.
+This paper compared CTC and autoregressive Transformer decoders for Telugu word-level handwriting recognition, using a shared stride-modified ResNet-18 encoder for a controlled comparison. The Transformer, trained with a joint CTC-attention loss, achieves 3.66\% CER on the IIIT-HW-Telugu test set---to our knowledge the lowest lexicon-free result reported on this benchmark, and a 20\% relative reduction from the 4.58\% of Dutta~et~al.~\cite{dutta2018}. Two architectural details---embedding scaling by $\sqrt{d_{\text{model}}}$ and weight tying---were essential for convergence in our experiments. Decomposing results by word type revealed that the Transformer's advantage comes entirely from conjunct-bearing words, and also that subset CER comparisons are confounded by systematic word-length differences, a point worth considering when interpreting compound-versus-simple results in Indic HTR. Finally, we observe a deployment trade-off: CTC produces frequent small character-level errors, while the Transformer is more accurate on average but susceptible to autoregressive collapse. Code and trained models are publicly available.
 
 % ═══════════════════════════════════════════════════════════════════
 % REPRODUCIBILITY
 % ═══════════════════════════════════════════════════════════════════
 \section*{Reproducibility}
 
-All source code, configuration files, and training scripts are publicly available at \url{https://github.com/[your-username]/telugu-htr}. The software stack comprises Python~3.12.13, PyTorch~2.7.1 (CUDA~11.8, cuDNN~9.1.0) on Ubuntu~22.04. All experiments were conducted on a single NVIDIA RTX~3090~Ti (24~GB). Total training time: $\sim$9.5 hours. The IIIT-HW-Telugu dataset is available at \url{https://cvit.iiit.ac.in/research/projects/cvit-projects/indic-hw-data}.
+All source code, configuration files, and training scripts are released at \url{https://github.com/Bhargav-252006/telugu_htr}. The stack is Python~3.12.13 with PyTorch~2.7.1 (CUDA~11.8, cuDNN~9.1.0) on Ubuntu~22.04. A single 24~GB NVIDIA GPU is enough to reproduce everything: the CTC model trains in about 3.5~hours (50~epochs) and the AR Transformer in about 5.4~hours (80~epochs). The IIIT-HW-Telugu dataset itself can be downloaded from \url{https://cvit.iiit.ac.in/research/projects/cvit-projects/indic-hw-data}.
 
 % ═══════════════════════════════════════════════════════════════════
 % REFERENCES
 % ═══════════════════════════════════════════════════════════════════
 \bibliographystyle{IEEEtran}
 
-\begin{thebibliography}{20}
+\begin{thebibliography}{19}
 
 \bibitem{vaswani2017attention}
 A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit, L.~Jones, A.~N.~Gomez, {\L}.~Kaiser, and I.~Polosukhin, ``Attention is all you need,'' in \textit{Proc. Advances in Neural Information Processing Systems (NeurIPS)}, vol.~30, 2017, pp.~5998--6008.
@@ -415,34 +441,34 @@ J.~Puigcerver, ``Are multidimensional recurrent layers really necessary for hand
 H.~Scheidl, S.~Fiel, and R.~Sablatnig, ``Word beam search: A connectionist temporal classification decoding algorithm,'' in \textit{Proc. Int. Conf. Frontiers in Handwriting Recognition (ICFHR)}, 2018, pp.~253--258.
 
 \bibitem{dutta2018}
-K.~Dutta, P.~Krishnan, M.~Mathew, and C.~V.~Jawahar, ``Towards accurate handwritten word recognition for Hindi and Bangla,'' in \textit{Proc. Int. Conf. Computer Vision Theory and Applications (VISAPP)}, 2018, pp.~470--477.
+K.~Dutta, P.~Krishnan, M.~Mathew, and C.~V.~Jawahar, ``Improving CNN-RNN hybrid networks for handwriting recognition,'' in \textit{Proc. Int. Conf. Frontiers in Handwriting Recognition (ICFHR)}, 2018, pp.~80--85.
 
 \bibitem{gongidi2021iiit}
 S.~Gongidi and C.~V.~Jawahar, ``IIIT-INDIC-HW-WORDS: A dataset for Indic handwritten text recognition,'' in \textit{Proc. Int. Conf. Document Analysis and Recognition (ICDAR)}, 2021, pp.~444--459.
 
-\bibitem{deshpande2021}
-A.~Deshpande, P.~Krishnan, and C.~V.~Jawahar, ``Attention-based approaches for handwritten text recognition in Indic scripts,'' in \textit{Proc. Int. Workshop on Document Analysis Systems}, 2021.
-
 \bibitem{platter2025}
-A.~Namboodiri and S.~K.~Ghosh, ``PLATTER: A page-level handwritten text recognition framework for Indic scripts,'' in \textit{Proc. Int. Conf. Document Analysis and Recognition (ICDAR)}, 2025.
+B.~V.~Kasuba, D.~Kudale, V.~Subramanian, P.~Chaudhuri, and G.~Ramakrishnan, ``PLATTER: A page-level handwritten text recognition system for Indic scripts,'' \textit{arXiv preprint arXiv:2502.06172}, 2025.
+
+\bibitem{watanabe2017hybrid}
+S.~Watanabe, T.~Hori, S.~Kim, J.~R.~Hershey, and T.~Hayashi, ``Hybrid CTC/attention architecture for end-to-end speech recognition,'' \textit{IEEE J. Selected Topics in Signal Processing}, vol.~11, no.~8, pp.~1240--1253, 2017.
+
+\bibitem{michael2019evaluating}
+J.~Michael, R.~Labahn, T.~Gr{\"u}ning, and J.~Z{\"o}llner, ``Evaluating sequence-to-sequence models for handwritten text recognition,'' in \textit{Proc. Int. Conf. Document Analysis and Recognition (ICDAR)}, 2019, pp.~1286--1293.
+
+\bibitem{xiong2020layer}
+R.~Xiong et~al., ``On layer normalization in the Transformer architecture,'' in \textit{Proc. Int. Conf. Machine Learning (ICML)}, 2020, pp.~10524--10533.
+
+\bibitem{press2017output}
+O.~Press and L.~Wolf, ``Using the output embedding to improve language models,'' in \textit{Proc. European Chapter of the ACL}, 2017, pp.~157--163.
+
+\bibitem{szegedy2016rethinking}
+C.~Szegedy, V.~Vanhoucke, S.~Ioffe, J.~Shlens, and Z.~Wojna, ``Rethinking the inception architecture for computer vision,'' in \textit{Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR)}, 2016, pp.~2818--2826.
 
 \bibitem{ethnologue2024}
 D.~M.~Eberhard, G.~F.~Simons, and C.~D.~Fennig, \textit{Ethnologue: Languages of the World}, 27th~ed. Dallas, TX: SIL International, 2024.
 
 \bibitem{efron1993bootstrap}
 B.~Efron and R.~J.~Tibshirani, \textit{An Introduction to the Bootstrap}. New York: Chapman \& Hall, 1993.
-
-\bibitem{hwang2016character}
-K.~Hwang and W.~Sung, ``Character-level language modeling with recurrent highway hypernetworks,'' in \textit{Proc. Advances in Neural Information Processing Systems (NeurIPS)}, 2016.
-
-\bibitem{anderson2017guided}
-P.~Anderson, B.~Fernando, M.~Johnson, and S.~Gould, ``Guided open vocabulary image captioning with constrained beam search,'' in \textit{Proc. Conf. Empirical Methods in Natural Language Processing (EMNLP)}, 2017, pp.~936--945.
-
-\bibitem{shin2021grammar}
-S.~Shin, S.~Kang, and S.~Lee, ``Grammar-based decoding for structured sequence labeling,'' in \textit{Proc. Annual Meeting of the Association for Computational Linguistics (ACL)}, 2021.
-
-\bibitem{inc4_2024}
-S.~Reddy and K.~Anand, ``Enhancing recognition of handwritten Telugu characters using deep learning,'' in \textit{Proc. IEEE Int. Conf. Contemporary Computing and Communications (InC4)}, 2024, pp.~1--6.
 
 \end{thebibliography}
 

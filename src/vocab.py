@@ -158,6 +158,7 @@ class TeluguVocab:
         return UNK_TOKEN
 
     def encode(self, text: str) -> List[int]:
+        text = unicodedata.normalize("NFC", text)
         return [self.char2idx(ch) for ch in text]
 
     def decode(self, ids: List[int], strip_special: bool = True) -> str:

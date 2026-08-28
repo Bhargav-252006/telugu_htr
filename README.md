@@ -58,10 +58,10 @@ major/
 
 | Split | Images |
 |---|---|
-| Train | 88,534 |
-| Val | 19,980 |
-| Test | 17,899 |
-| **Total** | **126,413** |
+| Train | 80,693 |
+| Val | 20,048 |
+| Test | 17,910 |
+| **Total** | **118,651** |
 
 **Annotation file format** (`labels.txt`, one line per sample):
 ```
@@ -100,8 +100,8 @@ Input  [B, 1, 64, 512]
 
 ### Autoregressive Model (AR)
 The AR model follows a state-of-the-art TrOCR-style architecture:
-1. **Transformer Encoder (2 layers):** Adds global visual context to the CNN features before decoding.
-2. **Transformer Decoder (4 layers):** Predicts character by character, attending to the encoder memory.
+1. **Transformer Encoder (3 layers):** Adds global visual context to the CNN features before decoding.
+2. **Transformer Decoder (6 layers, $d_{\text{model}}$=384):** Predicts character by character, attending to the encoder memory.
 
 ### CTC Baseline
 
@@ -283,13 +283,16 @@ Secondary: **WER**, compound CER (Virama words), simple CER.
 | LR schedule | OneCycleLR | Warmup + Cosine |
 | Warmup steps | — | 4000 |
 | Weight decay | 1e-4 | 1e-4 |
-| Label smoothing | — | 0.1 |
+| Label smoothing | — | 0.05 |
 | Gradient clip | 5.0 | 5.0 |
 | Mixed precision | fp16 | fp16 |
-| Max epochs | 30 | 50 |
-| Encoder layers | — | 2 |
-| Decoder layers | — | 4 |
+| Max epochs | 50 | 80 |
+| Encoder layers | — | 3 |
+| Decoder layers | — | 6 |
 | Attention heads | — | 8 |
+| $d_{\text{model}}$ | 256 | 384 |
+| $d_{\text{ff}}$ | — | 1536 |
+| Dropout | 0.2 | 0.15 |
 
 ---
 
@@ -308,8 +311,8 @@ Estimated training times:
 
 | Run | Duration |
 |---|---|
-| CTC (30 epochs) | ~1 hour |
-| AR (50 epochs) | ~3 hours |
+| CTC (50 epochs) | ~3.5 hours |
+| AR v2 (80 epochs) | ~5.4 hours |
 | Full ablation eval | ~30–40 min |
 | **Total** | **~4.5 hours** |
 

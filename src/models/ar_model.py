@@ -86,7 +86,8 @@ class ARModel(nn.Module):
 
         # ── Token embedding + positional encoding (decoder side) ─
         self.token_embed = nn.Embedding(vocab_size, d_model, padding_idx=0)
-        self.dec_pos_enc = PositionalEncoding(d_model, max_len=max_label_len + 2, dropout=dropout)
+        self.embed_scale = math.sqrt(d_model)  # Vaswani et al. 2017, Eq. 3
+        self.dec_pos_enc = PositionalEncoding(d_model, max_len=512, dropout=dropout)
 
         # ── Transformer decoder ──────────────────────────────────
         decoder_layer = nn.TransformerDecoderLayer(
@@ -104,7 +105,9 @@ class ARModel(nn.Module):
         )
 
         # ── Output projection ────────────────────────────────────
-        self.output_proj = nn.Linear(d_model, vocab_size)
+        self.output_proj = nn.Linear(d_model, vocab_size, bias=False)
+        # Weight tying: output projection shares weights with token embedding
+        self.output_proj.weight = self.token_embed.weight
 
         # ── Auxiliary CTC head for joint training ────────────────
         self.ctc_head = nn.Linear(d_model, vocab_size)
@@ -120,8 +123,8 @@ class ARModel(nn.Module):
 
     def _init_weights(self):
         nn.init.normal_(self.token_embed.weight, std=0.02)
-        nn.init.xavier_uniform_(self.output_proj.weight)
-        nn.init.zeros_(self.output_proj.bias)
+        # output_proj weights are tied to token_embed, so no separate init needed
+        # output_proj has no bias (bias=False)
 
     # ── Causal mask ──────────────────────────────────────────────
 
@@ -175,7 +178,7 @@ class ARModel(nn.Module):
             )
 
         # Decoder input embeddings + positional encoding
-        tgt_emb = self.token_embed(tgt_ids)        # [B, T, d_model]
+        tgt_emb = self.token_embed(tgt_ids) * self.embed_scale  # [B, T, d_model]
         tgt_emb = self.dec_pos_enc(tgt_emb)
 
         # Causal mask
@@ -224,7 +227,7 @@ class ARModel(nn.Module):
             memory = self.transformer_encoder(src=memory, src_key_padding_mask=memory_pad_mask)
 
         # 2. Run Decoder for AR CE Loss
-        tgt_emb = self.token_embed(decoder_input)
+        tgt_emb = self.token_embed(decoder_input) * self.embed_scale
         tgt_emb = self.dec_pos_enc(tgt_emb)
         causal_mask = self._causal_mask(decoder_input.size(1), images.device)
         tgt_key_pad = self._pad_mask(decoder_input)
@@ -316,7 +319,7 @@ class ARModel(nn.Module):
         finished  = torch.zeros(B, dtype=torch.bool, device=device)
 
         for step in range(max_len):
-            tgt_emb   = self.token_embed(generated)          # [B, t, d_model]
+            tgt_emb   = self.token_embed(generated) * self.embed_scale  # [B, t, d_model]
             tgt_emb   = self.dec_pos_enc(tgt_emb)
             causal_mk = self._causal_mask(generated.size(1), device)
 
@@ -421,7 +424,7 @@ class ARModel(nn.Module):
                     dtype=torch.long, device=device
                 )                                            # [cur_k, t]
 
-                tgt_emb   = self.token_embed(seqs)
+                tgt_emb   = self.token_embed(seqs) * self.embed_scale
                 tgt_emb   = self.dec_pos_enc(tgt_emb)
                 causal_mk = self._causal_mask(seqs.size(1), device)
 
