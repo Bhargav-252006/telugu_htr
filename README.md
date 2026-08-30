@@ -69,8 +69,10 @@ major/
 ```
 
 > **Note on checkpoints:** Model weights are 160–360 MB each and exceed GitHub's file limit.  
-> Download from Google Drive: *(link to be shared separately)*  
-> Required files: `checkpoints/ar_v2/best.pt`, `checkpoints/ctc/best.pt`, `checkpoints/vocab.pkl`
+> 📥 **Download from Google Drive:** https://drive.google.com/drive/folders/1_cAdVYOuqEzvmORYGvFKmJvAHpbKGo5N?usp=sharing  
+> Required files: `checkpoints/ar_v2/best.pt`, `checkpoints/ctc/best.pt`, `checkpoints/vocab.pkl`  
+> Place them under the `checkpoints/` folder before running evaluation.
+
 
 ---
 
