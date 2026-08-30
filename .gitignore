@@ -4,13 +4,14 @@ env/
 __pycache__/
 *.pyc
 
-# Data and Logs
+# Data (too large for GitHub)
 data/
-logs/
+
+# Checkpoints (160-360 MB each, use Google Drive)
 checkpoints/
-results/
-*.json
-*.log
+
+# Logs (TensorBoard event files)
+logs/
 
 # IDEs
 .vscode/
@@ -20,5 +21,18 @@ results/
 .DS_Store
 Thumbs.db
 
+# Archives
 *.gz
 *.tar.gz
+
+# Paper - reference/temporary files (not our work)
+paper/Team 4.docx
+paper/Major projects Phase-1 Final Documentation format.docx
+paper/AI REPORT.pdf
+paper/Similarity report.pdf
+paper/Date.docx
+paper/improving-cnn-rnn.pdf
+paper/extracted_doc.txt
+paper/generate_docx.py
+paper/Major_Project_Phase1_Documentation.docx
+nul
