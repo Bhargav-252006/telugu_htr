@@ -1,21 +1,30 @@
 # Telugu Handwritten Text Recognition (HTR)
 
 A research-grade system for recognising handwritten Telugu words using a
-**CNN + Transformer autoregressive decoder** with a **data-driven Telugu
-script constraint** that is built directly from the training labels —
-never from hard-coded linguistic rules.
+**CNN + Transformer autoregressive decoder (AR v2)** with a **data-driven Telugu
+script constraint** built directly from training labels — never from hard-coded linguistic rules.
+
+> **Paper submitted to:** International Journal on Document Analysis and Recognition (IJDAR), Springer Nature  
+> **Status:** Under Review
 
 ---
 
-## Research Contribution
+## Results (IIIT-HW-Telugu Test Set, N = 17,910)
 
-| Approach | Prior Work? | This Project |
-|---|---|---|
-| CNN + BiLSTM + CTC | Yes | Baseline benchmark |
-| CNN + Transformer Encoder + Decoder (AR) | Yes | SOTA architecture baseline |
-| + Data-derived Telugu constraints | Partially | Rigorous empirical evaluation |
+| Model | CER (%) | WER (%) | 95% CI (CER) | Speed (ms/img) |
+|---|---|---|---|---|
+| CTC Baseline (BiLSTM) | 3.91 | 24.80 | [3.79, 4.04] | 0.3 |
+| AR v1 — no CTC aux loss (ablation) | 5.43 | 32.37 | — | 1.7 |
+| AR v1 — unconstrained (ablation) | 4.89 | 29.83 | — | 1.7 |
+| **AR v2 — greedy, unconstrained** | **3.67** | **23.33** | [3.55, 3.79] | 1.4 |
+| AR v2 — greedy, constrained | 3.74 | 23.32 | [3.60, 3.88] | 1.8 |
+| **AR v2 — beam=5, unconstrained ✅ BEST** | **3.66** | **23.34** | [3.54, 3.79] | 77.0 |
+| AR v2 — beam=5, constrained | 3.67 | 23.28 | [3.55, 3.79] | 82.5 |
 
-**Core objective**: Empirically evaluate whether a data-derived, Telugu-script-aware autoregressive decoder outperforms standard CTC and plain autoregressive baselines on the IIIT-HW-Telugu benchmark, particularly on compound/ligature-heavy words (words containing Virama ్).
+> **Best model: `checkpoints/ar_v2/best.pt`** — AR v2 with beam=5, unconstrained decoding  
+> 3.66% CER = **20% relative reduction** from prior best (Dutta et al. 2018: 4.58%)
+
+---
 
 ## Project Structure
 
@@ -25,30 +34,43 @@ major/
 │   ├── vocab.py                # Telugu vocab + data-driven transition matrix
 │   ├── transforms.py           # Image preprocessing + augmentation
 │   ├── dataset.py              # IIIT-HW-Telugu dataset loader
-│   ├── checkpoint_manager.py   # Rolling 2-slot checkpoint system
+│   ├── checkpoint_manager.py   # Rolling 3-slot checkpoint system
 │   ├── train_ctc.py            # CTC baseline training
-│   ├── train_ar.py             # Autoregressive model training
+│   ├── train_ar.py             # AR model training (used for both ar and ar_v2)
 │   ├── evaluate.py             # CER / WER + virama breakdown + error analysis
+│   ├── generate_paper_figures.py
+│   ├── training_logger.py
 │   ├── models/
-│   │   ├── cnn_encoder.py      # ResNet-18 encoder (stride-patched for HTR, supports S=64/128)
+│   │   ├── cnn_encoder.py      # ResNet-18 encoder (stride-patched for HTR)
 │   │   ├── ctc_model.py        # CNN + BiLSTM + CTC
 │   │   └── ar_model.py         # CNN + Transformer Encoder + Decoder (greedy + beam)
 │   └── decoding/
 │       └── telugu_mask.py      # Data-driven Telugu constraint mask
 ├── configs/
-│   ├── ctc_config.yaml         # CTC training hyperparameters
-│   └── ar_config.yaml          # AR training hyperparameters
-├── data/
-│   └── raw/
-│       ├── train/              # Train images + labels.txt
-│       ├── val/                # Val images + labels.txt
-│       └── test/               # Test images + labels.txt
-├── checkpoints/                # Saved model weights (rolling 2-slot)
-├── logs/                       # TensorBoard logs
-├── notebooks/                  # Exploration + results notebooks
+│   ├── ctc_config.yaml         # CTC hyperparameters
+│   ├── ar_config.yaml          # AR v1 hyperparameters (ablation run)
+│   ├── ar_no_ctc_config.yaml   # AR without CTC aux loss (ablation run)
+│   └── ar_v2_config.yaml       # ⭐ AR v2 — final model config
+├── results/
+│   ├── ablation_results.json   # AR v1 ablation numbers
+│   ├── paper_figures/
+│   │   └── all_results.json    # ⭐ Final results (AR v2 + CTC)
+│   └── figures/                # Training curves, confusion matrix, ablation bar plots
+├── paper/
+│   ├── main_ijdar.tex          # IJDAR journal paper (LaTeX)
+│   ├── main.tex                # IEEE conference format (backup)
+│   ├── Major_Project_Documentation.docx  # Phase-1 project documentation
+│   └── figures/                # Paper figures
+├── checkpoints/                # Model weights (see note below)
+├── logs/                       # TensorBoard logs + training log
+├── notebooks/
 ├── requirements.txt
 └── README.md
 ```
+
+> **Note on checkpoints:** Model weights are 160–360 MB each and exceed GitHub's file limit.  
+> Download from Google Drive: *(link to be shared separately)*  
+> Required files: `checkpoints/ar_v2/best.pt`, `checkpoints/ctc/best.pt`, `checkpoints/vocab.pkl`
 
 ---
 
@@ -63,7 +85,7 @@ major/
 | Test | 17,910 |
 | **Total** | **118,651** |
 
-**Annotation file format** (`labels.txt`, one line per sample):
+Annotation file format (`labels.txt`, one line per sample):
 ```
 word_00001.png  కాలం
 word_00002.png  పూజ
@@ -84,24 +106,42 @@ data/raw/test/    ← images + labels.txt
 
 Standard ResNet-18 downsamples both height and width equally, producing
 sequence length S = 32 — too short for CTC on Telugu words with 10–15
-characters. This project patches the `maxpool` layer and `layer3/4` to 
-preserve width resolution, giving a configurable sequence length (default S = 64, 
-ablation S = 128).
+characters. This project patches `layer3` and `layer4` strides to
+preserve width resolution, giving S = 64.
 
 ```
 Input  [B, 1, 64, 512]
-  → Channel Replication (1→3)  preserve ImageNet pretraining
-  → ResNet-18 backbone         stride-patched to preserve width
-  → feature map [B, 512, 1, 64 or 128]
-  → squeeze height, Conv1D(512→256)
-  → Positional encoding
-  → Encoder memory [B, 64/128, 256]
+  → Channel Replication (1→3)         preserve ImageNet pretraining
+  → ResNet-18 backbone                stride-patched: layers 3/4 stride (2,1)
+  → feature map [B, 512, 4, 64]
+  → squeeze height via AvgPool
+  → Conv1x1(512 → d_model)
+  → Positional encoding (sinusoidal)
+  → Encoder memory [B, 64, d_model]
 ```
 
-### Autoregressive Model (AR)
-The AR model follows a state-of-the-art TrOCR-style architecture:
-1. **Transformer Encoder (3 layers):** Adds global visual context to the CNN features before decoding.
-2. **Transformer Decoder (6 layers, $d_{\text{model}}$=384):** Predicts character by character, attending to the encoder memory.
+### AR v2 — Final Model
+
+Trained with `configs/ar_v2_config.yaml` using `src/train_ar.py`.
+
+| Parameter | Value |
+|---|---|
+| d_model | 384 |
+| Encoder layers | 3 (Transformer) |
+| Decoder layers | 6 (Transformer) |
+| Attention heads | 8 |
+| d_ff | 1,536 |
+| Dropout | 0.15 |
+| Label smoothing | 0.05 |
+| CTC aux weight (λ) | 0.3 |
+| Batch size | 64 |
+| LR | 3e-4 (warmup 4000 steps + cosine) |
+| Epochs | 80 |
+| Mixed precision | FP16 |
+
+Two critical architectural fixes vs AR v1:
+- **Embedding scaling** by √d_model — without this, val CER stalls at ~4.89%
+- **Weight tying** between input embedding and output projection
 
 ### CTC Baseline
 
@@ -114,52 +154,12 @@ Encoder memory [B, 64, 256]
 
 ### Telugu-Aware Constraint Mask
 
-Built **purely from observed label bigrams** in the training set —
-no hard-coded linguistic rules.
+Built **purely from observed label bigrams** in the training set — no hard-coded rules.
 
-Algorithm:
 1. Scan every training label → extract every `(prev_char, next_char)` pair
 2. `valid_next[prev][next] = True` only if that pair was seen in training data
-3. During AR decoding: apply a soft penalty to logits of blocked next tokens before argmax
-4. Run `validate_against_split(val_ann)` before training → violation rate must be ~0%
-
----
-
-## Key Design Decisions
-
-| Decision | Choice | Why |
-|---|---|---|
-| CNN backbone | ResNet-18 pretrained | Stronger features, stable training |
-| Sequence model | CNN + Transformer hybrid | Better than pure ViT on limited HTR data |
-| Stride fix | layer3/layer4 → (1,1) | S=64/128 instead of S=32; safe CTC margin |
-| Script rules | Data-driven from labels | Never blocks a real training transition |
-| Evaluation Metric | NFC Normalized CER | Ensures visually identical representations are scored fairly |
-| Baselines | CTC + plain AR | Cleanly isolates novelty |
-| Checkpoints | Unbiased Unconstrained CER | Ensures objective model selection |
-
----
-
-## Checkpoint System
-
-Exactly **3 files on disk at all times**, no matter how many epochs run:
-
-```
-checkpoints/<run>/
-    best.pt        ← best val CER ever
-    current.pt     ← most recent completed epoch
-    previous.pt    ← epoch before that
-```
-
-Algorithm each epoch end:
-1. `current.pt` → renamed to `previous.pt`
-2. New state saved as `current.pt`
-3. If val CER improved → `current.pt` copied to `best.pt`
-
-Resume from any point:
-```bash
-python -m src.train_ctc --config configs/ctc_config.yaml --resume checkpoints/ctc/current.pt
-python -m src.train_ar  --config configs/ar_config.yaml  --resume checkpoints/ar/current.pt
-```
+3. During AR decoding: subtract penalty δ=10.0 from logits of blocked tokens
+4. Run `validate_against_split(val_ann)` → violation rate must be ~0%
 
 ---
 
@@ -171,9 +171,9 @@ pip install -r requirements.txt
 
 ---
 
-## Step-by-Step: How to Run
+## How to Run
 
-### Step 1 — Build vocabulary from training data
+### Step 1 — Build vocabulary
 
 ```bash
 python -m src.vocab \
@@ -182,117 +182,74 @@ python -m src.vocab \
     data/raw/val/labels.txt
 ```
 
-This will:
-- Scan all training labels → collect observed Telugu characters
-- Build character vocabulary (expect ~80–100 tokens)
-- Build **data-driven transition validity matrix** from observed bigrams
-- Print a per-category transition audit table
-- Validate the matrix against the val split → must show ~0% violation rate
-- Save vocab to `checkpoints/vocab.pkl`
-
-**Read the audit output before training.** If violation rate > 0.1%, the
-constraint matrix will hurt AR decoding on that fraction of samples.
-
----
-
-### Step 2 — Train CTC baseline (~1 hour on RTX 3090 Ti)
+### Step 2 — Train CTC baseline (~3.5 hours on RTX 3090 Ti)
 
 ```bash
 python -m src.train_ctc --config configs/ctc_config.yaml
 ```
 
-Monitor live:
+### Step 3 — Train AR v2 (final model) (~5.4 hours on RTX 3090 Ti)
+
 ```bash
-tensorboard --logdir logs/ctc
+python -m src.train_ar --config configs/ar_v2_config.yaml
 ```
 
-Logs per epoch: `train/loss`, `train/lr`, `val/loss`, `val/CER`,
-`val/WER`, `val/avg_pred_len`.
-
----
-
-### Step 3 — Train autoregressive model (~3 hours on RTX 3090 Ti)
-
+Resume after interruption:
 ```bash
-python -m src.train_ar --config configs/ar_config.yaml
+python -m src.train_ar --config configs/ar_v2_config.yaml --resume checkpoints/ar_v2/current.pt
 ```
 
-Resume after any interruption:
-```bash
-python -m src.train_ar --config configs/ar_config.yaml --resume checkpoints/ar/current.pt
-```
-
----
-
-### Step 4 — Run the 4-row ablation on test set
+### Step 4 — Evaluate (reproduce paper results)
 
 ```bash
-# Run A — CTC baseline
+# CTC Baseline
 python -m src.evaluate \
     --model_type ctc \
     --checkpoint checkpoints/ctc/best.pt \
     --config configs/ctc_config.yaml \
     --split test
 
-# Run B — AR decoder, no Telugu constraint
+# AR v2 — greedy, unconstrained
 python -m src.evaluate \
     --model_type ar \
-    --checkpoint checkpoints/ar/best.pt \
-    --config configs/ar_config.yaml \
+    --checkpoint checkpoints/ar_v2/best.pt \
+    --config configs/ar_v2_config.yaml \
     --split test --no_constrain
 
-# Run C — AR decoder + Telugu constraint (greedy)
+# AR v2 — greedy, constrained
 python -m src.evaluate \
     --model_type ar \
-    --checkpoint checkpoints/ar/best.pt \
-    --config configs/ar_config.yaml \
+    --checkpoint checkpoints/ar_v2/best.pt \
+    --config configs/ar_v2_config.yaml \
     --split test
 
-# Run D — AR decoder + Telugu constraint + beam search
+# AR v2 — beam=5, unconstrained (BEST RESULT: 3.66% CER)
 python -m src.evaluate \
     --model_type ar \
-    --checkpoint checkpoints/ar/best.pt \
-    --config configs/ar_config.yaml \
+    --checkpoint checkpoints/ar_v2/best.pt \
+    --config configs/ar_v2_config.yaml \
+    --split test --beam --beam_size 5 --no_constrain
+
+# AR v2 — beam=5, constrained
+python -m src.evaluate \
+    --model_type ar \
+    --checkpoint checkpoints/ar_v2/best.pt \
+    --config configs/ar_v2_config.yaml \
     --split test --beam --beam_size 5
 ```
 
 ---
 
-## Ablation Table (expected format)
+## Checkpoint System
 
-| Model | Telugu Constraint | Beam | CER | WER | Compound CER | Simple CER |
-|---|---|---|---|---|---|---|
-| CTC Baseline | — | greedy | — | — | — | — |
-| AR Decoder | ✗ | greedy | — | — | — | — |
-| AR + Constraint | ✓ | greedy | — | — | — | — |
-| AR + Constraint | ✓ | beam=5 | — | — | — | — |
+Exactly **3 files on disk at all times**:
 
-Primary metric: **CER** (Character Error Rate).
-Secondary: **WER**, compound CER (Virama words), simple CER.
-
----
-
-## Hyperparameters
-
-| Parameter | CTC | AR |
-|---|---|---|
-| Image H × W | 64 × 512 | 64 × 512 |
-| Batch size | 64 | 64 |
-| Optimizer | AdamW | AdamW |
-| Learning rate | 1e-3 | 3e-4 |
-| LR schedule | OneCycleLR | Warmup + Cosine |
-| Warmup steps | — | 4000 |
-| Weight decay | 1e-4 | 1e-4 |
-| Label smoothing | — | 0.05 |
-| Gradient clip | 5.0 | 5.0 |
-| Mixed precision | fp16 | fp16 |
-| Max epochs | 50 | 80 |
-| Encoder layers | — | 3 |
-| Decoder layers | — | 6 |
-| Attention heads | — | 8 |
-| $d_{\text{model}}$ | 256 | 384 |
-| $d_{\text{ff}}$ | — | 1536 |
-| Dropout | 0.2 | 0.15 |
+```
+checkpoints/<run>/
+    best.pt        ← best val CER ever seen
+    current.pt     ← most recent completed epoch
+    previous.pt    ← epoch before that
+```
 
 ---
 
@@ -303,18 +260,14 @@ Secondary: **WER**, compound CER (Virama words), simple CER.
 | GPU | RTX 3090 Ti (24 GB VRAM) |
 | System RAM | 4 GB |
 
-> **Note on system RAM**: `num_workers` is set to 2 (not 4) in both
-> configs to avoid RAM pressure with 4 GB system memory.
-> Drop to `num_workers: 0` if you still see OOM errors during data loading.
-
-Estimated training times:
+> **Note:** `num_workers` is set to 8 in `ar_v2_config.yaml`. Drop to `num_workers: 0` if you see OOM errors during data loading.
 
 | Run | Duration |
 |---|---|
 | CTC (50 epochs) | ~3.5 hours |
 | AR v2 (80 epochs) | ~5.4 hours |
 | Full ablation eval | ~30–40 min |
-| **Total** | **~4.5 hours** |
+| **Total** | **~9 hours** |
 
 ---
 
@@ -323,15 +276,28 @@ Estimated training times:
 | File | Purpose |
 |---|---|
 | `src/vocab.py` | Telugu Unicode vocab, data-driven transition matrix, audit + validation |
-| `src/transforms.py` | Grayscale, resize H=64, pad W=512, augmentation |
+| `src/transforms.py` | Grayscale, resize H=64, pad W=512, augmentation pipeline |
 | `src/dataset.py` | Dataset class, `build_dataloader()` factory |
-| `src/checkpoint_manager.py` | Rolling 2-slot: best / current / previous |
+| `src/checkpoint_manager.py` | Rolling 3-slot: best / current / previous |
 | `src/models/cnn_encoder.py` | ResNet-18, stride patch, positional encoding |
 | `src/models/ctc_model.py` | CTC model, greedy decode |
-| `src/models/ar_model.py` | AR model, greedy decode, beam search |
+| `src/models/ar_model.py` | AR model, greedy decode, beam search, weight tying |
 | `src/decoding/telugu_mask.py` | Constraint mask, vectorised apply, stats |
 | `src/train_ctc.py` | CTC training loop |
-| `src/train_ar.py` | AR training loop |
+| `src/train_ar.py` | AR training loop (used for ar, ar_no_ctc, and ar_v2) |
 | `src/evaluate.py` | CER, WER, virama breakdown, confusion matrix, ablation table |
 | `configs/ctc_config.yaml` | CTC hyperparameters |
-| `configs/ar_config.yaml` | AR hyperparameters |
+| `configs/ar_v2_config.yaml` | ⭐ AR v2 final model hyperparameters |
+| `configs/ar_config.yaml` | AR v1 (ablation) hyperparameters |
+| `configs/ar_no_ctc_config.yaml` | AR without CTC aux loss (ablation) |
+| `results/paper_figures/all_results.json` | Final test-set numbers (AR v2 + CTC) |
+| `results/ablation_results.json` | AR v1 ablation numbers |
+
+---
+
+## Authors
+
+- **Sakilam Bhargav** (23211A67A7) — [23211a67a7@bvrit.ac.in](mailto:23211a67a7@bvrit.ac.in)
+- **Thatha Nikitha** (23211A67B6)
+- **Sabavat Vinod Nayak** (23211A67A6)
+- **Dr. R. Venkata Ramana Chary** *(Guide)* — Professor, CSE (Data Science), BVRIT Narsapur

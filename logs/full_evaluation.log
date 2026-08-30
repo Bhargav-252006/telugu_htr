@@ -1,0 +1,197 @@
+/home/csd23rb8/67a7/MajorProject/telugu_htr/.venv/lib/python3.12/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+======================================================================
+  Telugu HTR — Full Evaluation & Figure Generation
+======================================================================
+
+[STEP 1] Generating training curves...
+[PLOT] Reading training log: logs/ar_v2/training_20260731_134445.json
+[WARN] Unexpected JSON structure. Keys: ['model_name', 'system_info', 'training_start', 'epoch_metrics', 'epoch_times_seconds', 'gpu_snapshots']
+[PLOT] Parsing text log: logs/ar_v2/training_20260731_134445.log
+[SKIP] Could not parse any epoch data from log.
+
+==================================================
+  CER Progression — AR Transformer v2
+==================================================
+  Epoch      Val CER      Status
+--------------------------------------------------
+  1          18.06%        
+  2          9.25%        
+  5          6.39%        
+  10         3.97%        
+  20         3.12%        
+  30         3.43%        
+  40         2.55%        
+  50         2.83%        
+  60         2.59%        
+  72         2.40%        ★ BEST
+  80         2.42%        
+==================================================
+
+[STEP 2] Running model evaluations...
+[EVAL] Device: cuda
+
+======================================================================
+  Evaluating AR Transformer v2
+======================================================================
+[Vocab] Loaded from checkpoints/vocab.pkl (size=91)
+[Dataset] Loaded 17910 samples (skipped 0) from data/raw/test/labels.txt
+
+[1/4] AR v2 — Greedy (Unconstrained)...
+  CER: 3.67%  WER: 23.33%
+
+[2/4] AR v2 — Greedy (Constrained)...
+  CER: 3.74%  WER: 23.32%
+
+[3/4] AR v2 — Beam Search (Unconstrained, beam=5)...
+  CER: 3.66%  WER: 23.34%
+
+[4/4] AR v2 — Beam Search (Constrained, beam=5)...
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3105 (\N{TELUGU LETTER DDA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3093 (\N{TELUGU LETTER KA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3142 (\N{TELUGU VOWEL SIGN E}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3147 (\N{TELUGU VOWEL SIGN OO}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3136 (\N{TELUGU VOWEL SIGN II}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3135 (\N{TELUGU VOWEL SIGN I}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3119 (\N{TELUGU LETTER YA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3134 (\N{TELUGU VOWEL SIGN AA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3118 (\N{TELUGU LETTER MA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3110 (\N{TELUGU LETTER DA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3126 (\N{TELUGU LETTER SHA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3112 (\N{TELUGU LETTER NA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3146 (\N{TELUGU VOWEL SIGN O}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3148 (\N{TELUGU VOWEL SIGN AU}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3125 (\N{TELUGU LETTER VA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:480: UserWarning: Glyph 3120 (\N{TELUGU LETTER RA}) missing from font(s) DejaVu Sans.
+  fig.tight_layout()
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3105 (\N{TELUGU LETTER DDA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3093 (\N{TELUGU LETTER KA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3142 (\N{TELUGU VOWEL SIGN E}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3147 (\N{TELUGU VOWEL SIGN OO}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3136 (\N{TELUGU VOWEL SIGN II}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3135 (\N{TELUGU VOWEL SIGN I}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3119 (\N{TELUGU LETTER YA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3134 (\N{TELUGU VOWEL SIGN AA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3118 (\N{TELUGU LETTER MA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3110 (\N{TELUGU LETTER DA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3126 (\N{TELUGU LETTER SHA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3112 (\N{TELUGU LETTER NA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3146 (\N{TELUGU VOWEL SIGN O}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3148 (\N{TELUGU VOWEL SIGN AU}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3125 (\N{TELUGU LETTER VA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+/home/csd23rb8/67a7/MajorProject/telugu_htr/scripts/run_full_evaluation.py:483: UserWarning: Glyph 3120 (\N{TELUGU LETTER RA}) missing from font(s) DejaVu Sans.
+  fig.savefig(path, dpi=300, bbox_inches="tight")
+  CER: 3.67%  WER: 23.28%
+
+[ERROR ANALYSIS] Using best variant: AR v2 (beam=5, unconstrained)
+
+── Top-20 error examples ──────────────────
+  [ 1] CER=2.600  GT='గాడిన'  PRED='ఆయుర్వర్థనుడని'
+  [ 2] CER=1.444  GT='మాధ్యమంతో'  PRED='సంపాదించుకున్న'
+  [ 3] CER=1.400  GT='తమిళం'  PRED='తీవ్రతని'
+  [ 4] CER=1.286  GT='తేడాలను'  PRED='దౌర్భాగ్యం'
+  [ 5] CER=1.250  GT='మీనం'  PRED='పేస్త'
+  [ 6] CER=1.250  GT='తాంబూలపు'  PRED='చుట్టూవున్న'
+  [ 7] CER=1.200  GT='లేదని'  PRED='పాదాప్య'
+  [ 8] CER=1.167  GT='వీరుడు'  PRED='వర్కింగ్'
+  [ 9] CER=1.143  GT='తలతిక్క'  PRED='వెంకటేష్'
+  [10] CER=1.100  GT='నిర్వహించే'  PRED='ప్రేక్షకుల్ని'
+  [11] CER=1.000  GT='హవాలా'  PRED='విరిమా'
+  [12] CER=1.000  GT='రోశయ్యకు'  PRED='దౌర్భాగ్యం'
+  [13] CER=1.000  GT='రాజకీయాలపై'  PRED='అనుకునేవారు'
+  [14] CER=1.000  GT='రక్షించుకోవడానికి'  PRED='సీతారామఆంజనేయులు'
+  [15] CER=1.000  GT='మొదలు'  PRED='ఆవాహన'
+  [16] CER=1.000  GT='మరిగేంతలో'  PRED='మనోరథాన్ని'
+  [17] CER=1.000  GT='ప్రాంతాల'  PRED='దౌర్భాగ్యం'
+  [18] CER=1.000  GT='పూజను'  PRED='ఫ్లాసను'
+  [19] CER=1.000  GT='పడుకున్నా'  PRED='దౌర్భాగ్యం'
+  [20] CER=1.000  GT='దృశ్యాన్ని'  PRED='నటీమణితో'
+
+── Top-20 character confusions ─────────────────────────
+      GT  →    PRED     COUNT
+  'డ'  →  'ద'       478
+  'క'  →  'శ'       343
+  'క'  →  'న'       265
+  'ె'  →  'ి'       169
+  'ో'  →  'ొ'       157
+  'ీ'  →  'ి'       151
+  'ి'  →  'ీ'       129
+  'క'  →  'మ'       117
+  'య'  →  'మ'       117
+  'ా'  →  'ౌ'       112
+  'క'  →  'వ'       103
+  'క'  →  'ర'        91
+  'మ'  →  'య'        82
+  'డ'  →  'ర'        74
+  'ి'  →  'న'        60
+  'న'  →  'ి'        56
+  'క'  →  'త'        53
+  'న'  →  'ా'        53
+  'ు'  →  'ం'        50
+  'న'  →  '్'        49
+[SAVED] results/paper_figures/confusion_matrix_ar_v2.png
+[SAVED] results/paper_figures/confusion_matrix_ar_v2.png
+
+======================================================================
+  Evaluating CTC Baseline
+======================================================================
+[Vocab] Loaded from checkpoints/vocab.pkl (size=91)
+[Dataset] Loaded 17910 samples (skipped 0) from data/raw/test/labels.txt
+
+[CTC] Greedy decoding...
+  CER: 3.91%  WER: 24.80%
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Model                               CER      WER           95% CI   Comp CER      Speed
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  AR v2 (greedy, unconstrained)     3.67%   23.33% [ 3.55,  3.79]      3.32%     1.4 ms
+  AR v2 (greedy, constrained)       3.74%   23.32% [ 3.60,  3.88]      3.33%     1.8 ms
+  AR v2 (beam=5, unconstrained)     3.66%   23.34% [ 3.54,  3.79]      3.31%    77.0 ms
+  AR v2 (beam=5, constrained)       3.67%   23.28% [ 3.55,  3.79]      3.30%    82.5 ms
+  CTC Baseline                      3.91%   24.80% [ 3.79,  4.04]      3.70%     0.3 ms
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+[SAVED] results/paper_figures/ablation_comparison.png
+[SAVED] results/paper_figures/ablation_comparison.pdf
+
+[SAVED] results/paper_figures/all_results.json
+
+======================================================================
+  ALL DONE! Figures saved to: results/paper_figures/
+======================================================================
+
+Files generated:
+  ablation_comparison.pdf                  28.2 KB
+  ablation_comparison.png                  198.5 KB
+  all_results.json                         2.6 KB
+  confusion_matrix_ar_v2.png               215.4 KB
